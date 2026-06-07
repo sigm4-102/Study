@@ -313,6 +313,32 @@ nav button:active{transform:scale(.9)}
 .sync-actions button.primary{background:var(--accent);color:#1a1205;border-color:var(--accent)}
 .setup-warn{background:rgba(255,138,107,.06);border:1px solid rgba(255,138,107,.2);border-radius:12px;padding:13px 14px;font-size:13px;color:var(--coral);line-height:1.65;margin-top:10px}
 .setup-warn code{background:rgba(0,0,0,.3);padding:1px 6px;border-radius:4px;font-family:var(--mono);font-size:12px;color:var(--accent)}
+
+/* Plan grouping (today vs others) */
+.group-label{display:flex;align-items:center;gap:10px;margin:4px 2px 13px;font-family:var(--mono);font-size:11px;letter-spacing:.13em;color:var(--dim);text-transform:uppercase;font-weight:700}
+.group-label::after{content:"";flex:1;height:1px;background:var(--border-soft)}
+.group-label .wd{color:var(--accent)}
+.group-label.others{margin-top:28px}
+.group-label.others .ico{color:var(--faint)}
+.group-empty{text-align:center;color:var(--faint);font-size:13px;padding:10px 0 4px}
+
+/* Progress number next to subject */
+.prog{font-family:var(--mono);font-weight:700;color:var(--text)}
+.prog .sl{color:var(--faint);font-weight:400;margin:0 1px}
+.sub .pu{color:var(--faint)}
+
+/* Pace chip (ahead / behind / on-track) */
+.pacerow{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:11px;flex-wrap:wrap}
+.pace{font-family:var(--mono);font-size:12px;font-weight:700;padding:4px 11px;border-radius:99px;white-space:nowrap;display:inline-flex;align-items:center;gap:5px}
+.pace.ahead{background:rgba(91,208,138,.12);color:var(--green);border:1px solid rgba(91,208,138,.28)}
+.pace.behind{background:rgba(255,138,107,.12);color:var(--coral);border:1px solid rgba(255,138,107,.28)}
+.pace.ontrack{background:var(--surface-2);color:var(--dim);border:1px solid var(--border-soft)}
+.pace-hint{font-family:var(--mono);font-size:11px;color:var(--faint);white-space:nowrap}
+
+/* Home task pace tag */
+.task .pace-tag{font-family:var(--mono);font-size:11px;font-weight:700;padding:1px 7px;border-radius:99px}
+.task .pace-tag.ahead{background:rgba(91,208,138,.12);color:var(--green)}
+.task .pace-tag.behind{background:rgba(255,138,107,.12);color:var(--coral)}
 </style>
 </head>
 <body>
@@ -401,6 +427,29 @@ function countStudyDays(from,to,days){ // inclusive, days=array of weekday 0-6 a
 }
 const WD=["日","月","火","水","木","金","土"];
 
+/* ============ Migration: 既存計画に開始日/開始時完了量を補完 ============ */
+// startDate が無い計画は、最も古い記録日(無ければ今日)を開始日とみなし、
+// startDone は「現在の完了量 − その計画の全記録単位数」で推定する。
+function migratePlans(){
+  let changed=false;
+  DB.plans.forEach(p=>{
+    if(p.startDate&&typeof p.startDone==="number")return;
+    const recs=DB.records.filter(r=>r.planId===p.id);
+    if(!p.startDate){
+      let earliest=null;
+      recs.forEach(r=>{if(!earliest||r.date<earliest)earliest=r.date;});
+      p.startDate=earliest||todayStr();
+      changed=true;
+    }
+    if(typeof p.startDone!=="number"){
+      const sumU=recs.reduce((s,r)=>s+(r.units||0),0);
+      p.startDone=Math.max(0,Math.min(p.completed,p.completed-sumU));
+      changed=true;
+    }
+  });
+  return changed;
+}
+
 /* ============ Reverse-calc ============ */
 function planCalc(p){
   const t=today(),dl=parseD(p.deadline);
@@ -416,7 +465,24 @@ function planCalc(p){
                             .reduce((s,r)=>s+(r.units||0),0);
   const todayQuota=(isStudyDay||overdue)?daily:0;
   const todayLeft=Math.max(0,todayQuota-doneToday);
+
+  // ---- pace tracking: 開始日からの「理想ライン」に対して今どれだけ先行/遅れか ----
+  // startDate(開始日) と startDone(開始時点の完了量) を基準に、締切までを
+  // 学習曜日で均等割りした理想ペースを引く。判定は「前日終了時点」で行い、
+  // 当日分のノルマ(todayQuota)とは混ぜない(毎朝マイナスに振れるノイズを防ぐ)。
+  const sDate=p.startDate?parseD(p.startDate):t;
+  const sDone=(typeof p.startDone==="number")?p.startDone:p.completed;
+  const totalWork=Math.max(0,p.total-sDone);
+  const planStudyDays=countStudyDays(sDate,dl,p.days);      // 開始〜締切(両端含む)の学習日数
+  const perDay=planStudyDays>0?totalWork/planStudyDays:totalWork;
+  const yest=addDays(t,-1);
+  const bound=yest<dl?yest:dl;                              // 締切は超えない
+  const elapsedDays=countStudyDays(sDate,bound,p.days);     // 前日までの学習日数
+  const idealNow=Math.min(p.total,sDone+perDay*elapsedDays);
+  const pace=Math.round(p.completed-idealNow);             // + 先行 / - 遅れ
+
   return {remaining,studyDays,daily,overdue,isStudyDay,doneToday,todayQuota,todayLeft,
+          pace,idealNow,
           daysLeft:daysBetween(t,dl),pct:p.total?Math.min(100,Math.round(p.completed/p.total*100)):0};
 }
 
@@ -523,12 +589,15 @@ function renderHome(){
     h+=`<div class="card">`;
     tasks.forEach(({p,c})=>{
       const done=c.todayLeft<=0;
+      let paceTag="";
+      if(c.pace>0)paceTag=`<span class="pace-tag ahead">＋${c.pace}</span>`;
+      else if(c.pace<0)paceTag=`<span class="pace-tag behind">${c.pace}</span>`;
       h+=`<div class="task ${done?'complete':''}">
         <div class="check ${done?'done':''}" onclick="toggleTask('${p.id}')">${I.check}</div>
         <div class="body">
           <div class="t">${esc(p.title)}</div>
           <div class="sub"><span class="dot" style="background:${p.color}"></span>${esc(p.subject)}
-            <span style="color:var(--faint)">·</span> 残り${c.daysLeft}日</div>
+            <span style="color:var(--faint)">·</span> 残り${c.daysLeft}日 ${paceTag}</div>
         </div>
         <div class="q">${c.doneToday}/${c.todayQuota}<span style="color:var(--faint)"> ${esc(p.unit)}</span></div>
         <div class="qbtns"><button onclick="quickLog('${p.id}',1)">＋</button></div>
@@ -548,6 +617,35 @@ window.quickLog=(id,n)=>{
 };
 
 /* ---- PLANS ---- */
+function planCardHTML(p,c,showPace){
+  const dueClass=c.daysLeft<7?'':'safe';
+  let paceRow="";
+  if(showPace){
+    let chip;
+    if(c.pace>0)chip=`<span class="pace ahead">＋${c.pace}${esc(p.unit)} 先行</span>`;
+    else if(c.pace<0)chip=`<span class="pace behind">${c.pace}${esc(p.unit)} 遅れ</span>`;
+    else chip=`<span class="pace ontrack">予定どおり</span>`;
+    paceRow=`<div class="pacerow">${chip}<span class="pace-hint">今日のノルマ ${c.doneToday}/${c.todayQuota}${esc(p.unit)}</span></div>`;
+  }
+  return `<div class="card plan">
+    <div class="top">
+      <div><div class="ttl">${esc(p.title)}</div>
+      <div class="sub"><span class="dot" style="background:${p.color};display:inline-block;margin-right:6px;vertical-align:middle"></span>${esc(p.subject)} · <span class="prog">${p.completed}<span class="sl">/</span>${p.total}</span> <span class="pu">${esc(p.unit)}</span></div></div>
+      <span class="badge">${c.pct}%</span>
+    </div>
+    <div class="pbar"><i class="${c.remaining<=0?'grn':''}" style="width:${c.pct}%"></i></div>
+    ${paceRow}
+    <div class="meta">
+      <span>1日 <b style="color:var(--accent)">${c.daily}${esc(p.unit)}</b> ペース</span>
+      <span class="due ${dueClass}">${c.overdue?'期限超過':c.daysLeft===0?'今日が締切':'あと'+c.daysLeft+'日'}</span>
+    </div>
+    <div class="actions">
+      <button onclick="quickLog('${p.id}',1)">＋1 記録</button>
+      <button onclick="planForm('${p.id}')">編集</button>
+      <button class="go" onclick="startFocusFor('${p.id}')">集中</button>
+    </div>
+  </div>`;
+}
 function renderPlans(){
   const el=document.getElementById("s-plans");
   let h=`<div class="shead"><span class="num">02</span><h2>逆算プラン</h2><span class="en">Planning</span></div>`;
@@ -555,33 +653,34 @@ function renderPlans(){
   if(!DB.plans.length){
     h+=`<div class="card"><div class="empty"><div class="ico">📚</div><p>教材と締切を入力するだけで、<br>残り日数から最適な1日の量を自動計算します。</p></div></div>`;
   }else{
-    DB.plans.forEach(p=>{
-      const c=planCalc(p);
-      const dueClass=c.daysLeft<7?'':'safe';
-      h+=`<div class="card plan">
-        <div class="top">
-          <div><div class="ttl">${esc(p.title)}</div>
-          <div class="sub"><span class="dot" style="background:${p.color};display:inline-block;margin-right:6px;vertical-align:middle"></span>${esc(p.subject)} · 全${p.total}${esc(p.unit)}</div></div>
-          <span class="badge">${c.pct}%</span>
-        </div>
-        <div class="pbar"><i class="${c.remaining<=0?'grn':''}" style="width:${c.pct}%"></i></div>
-        <div class="meta">
-          <span>1日 <b style="color:var(--accent)">${c.daily}${esc(p.unit)}</b> ペース</span>
-          <span class="due ${dueClass}">${c.overdue?'期限超過':c.daysLeft===0?'今日が締切':'あと'+c.daysLeft+'日'}</span>
-        </div>
-        <div class="actions">
-          <button onclick="quickLog('${p.id}',1)">＋1 記録</button>
-          <button onclick="planForm('${p.id}')">編集</button>
-          <button class="go" onclick="startFocusFor('${p.id}')">集中</button>
-        </div>
-      </div>`;
-    });
+    const items=DB.plans.map(p=>({p,c:planCalc(p)}));
+    // 今日の学習曜日 かつ まだ全体が終わっていない計画 → 上に。遅れている順。
+    const todayItems=items.filter(x=>x.c.isStudyDay&&x.c.remaining>0)
+                          .sort((a,b)=>a.c.pace-b.c.pace);
+    // それ以外(今日やらない曜日 / 完了済み) → 下に。未完を締切が近い順、完了は最後。
+    const otherItems=items.filter(x=>!(x.c.isStudyDay&&x.c.remaining>0))
+                          .sort((a,b)=>{
+                            const ac=a.c.remaining<=0,bc=b.c.remaining<=0;
+                            if(ac!==bc)return ac?1:-1;
+                            return a.c.daysLeft-b.c.daysLeft;
+                          });
+    const wd=WD[today().getDay()];
+    h+=`<div class="group-label">今日やる<span class="wd">${wd}曜</span></div>`;
+    if(todayItems.length){
+      todayItems.forEach(({p,c})=>{h+=planCardHTML(p,c,true);});
+    }else{
+      h+=`<div class="group-empty">今日(${wd})にやる計画はありません</div>`;
+    }
+    if(otherItems.length){
+      h+=`<div class="group-label others">その他の計画</div>`;
+      otherItems.forEach(({p,c})=>{h+=planCardHTML(p,c,false);});
+    }
   }
   el.innerHTML=h;
 }
 function planForm(id){
   const p=id?DB.plans.find(x=>x.id===id):null;
-  const def=p||{title:"",subject:"",total:100,unit:"問",completed:0,deadline:dstr(addDays(today(),30)),days:[1,2,3,4,5,6],color:"#f4b740"};
+  const def=p||{title:"",subject:"",total:100,unit:"問",completed:0,startDate:todayStr(),deadline:dstr(addDays(today(),30)),days:[1,2,3,4,5,6],color:"#f4b740"};
   const colors=["#f4b740","#5bd08a","#46c9d6","#9d8cff","#ff8a6b"];
   openSheet(`<h3>${p?'計画を編集':'新しい計画'}</h3>
     <div class="desc">締切までの残り日数から、1日のノルマを自動で逆算します。</div>
@@ -594,7 +693,10 @@ function planForm(id){
       <div class="field"><label>総量</label><input id="f-total" type="number" inputmode="numeric" value="${def.total}"></div>
       <div class="field"><label>完了済み</label><input id="f-completed" type="number" inputmode="numeric" value="${def.completed}"></div>
     </div>
-    <div class="field"><label>締切日</label><input id="f-deadline" type="date" value="${def.deadline}"></div>
+    <div class="row2">
+      <div class="field"><label>開始日</label><input id="f-startdate" type="date" value="${def.startDate||todayStr()}"></div>
+      <div class="field"><label>締切日</label><input id="f-deadline" type="date" value="${def.deadline}"></div>
+    </div>
     <div class="field"><label>学習する曜日</label>
       <div class="daypick" id="f-days">${WD.map((w,i)=>`<button data-d="${i}" class="${def.days.includes(i)?'on':''}">${w}</button>`).join("")}</div>
     </div>
@@ -614,11 +716,18 @@ window.savePlan=id=>{
   const title=g("f-title")||"無題の計画";
   const days=[...document.querySelectorAll("#f-days button.on")].map(b=>+b.dataset.d);
   const color=document.querySelector("#f-color button.on")?.dataset.c||"#f4b740";
+  const completed=Math.max(0,+g("f-completed")||0);
   const data={title,subject:g("f-subject")||"その他",unit:g("f-unit")||"問",
-    total:Math.max(1,+g("f-total")||1),completed:Math.max(0,+g("f-completed")||0),
+    total:Math.max(1,+g("f-total")||1),completed,
+    startDate:g("f-startdate")||todayStr(),
     deadline:g("f-deadline")||dstr(addDays(today(),30)),days:days.length?days:[1,2,3,4,5],color};
-  if(id){Object.assign(DB.plans.find(x=>x.id===id),data);}
-  else{DB.plans.push({id:uid(),...data});}
+  if(id){
+    // 編集時は startDone(開始時点の完了量=理想ラインの基準)は維持する
+    Object.assign(DB.plans.find(x=>x.id===id),data);
+  }else{
+    // 新規作成時は「完了済み」を開始時点の基準とする → 当日の差分は0からスタート
+    DB.plans.push({id:uid(),...data,startDone:completed});
+  }
   save();closeSheet();toast(id?"更新しました":"計画を作成しました");renderPlans();
 };
 window.delPlan=id=>{DB.plans=DB.plans.filter(x=>x.id!==id);save();closeSheet();toast("削除しました");renderPlans();};
@@ -841,9 +950,9 @@ window.doReset=()=>{DB.plans=[];DB.records=[];save();closeSheet();toast("消去�
 /* ---- Demo seed ---- */
 window.seedDemo=()=>{
   DB.plans=[
-    {id:uid(),title:"チャート式 数学IIB",subject:"数学",unit:"問",total:300,completed:84,deadline:dstr(addDays(today(),45)),days:[1,2,3,4,5,6],color:"#f4b740"},
-    {id:uid(),title:"LEAP 英単語(改訂)",subject:"英語",unit:"語",total:2300,completed:910,deadline:dstr(addDays(today(),90)),days:[0,1,2,3,4,5,6],color:"#46c9d6"},
-    {id:uid(),title:"鎌田の理論化学",subject:"化学",unit:"章",total:18,completed:5,deadline:dstr(addDays(today(),30)),days:[2,4,6],color:"#5bd08a"},
+    {id:uid(),title:"チャート式 数学IIB",subject:"数学",unit:"問",total:300,completed:84,startDate:dstr(addDays(today(),-20)),startDone:40,deadline:dstr(addDays(today(),45)),days:[1,2,3,4,5,6],color:"#f4b740"},
+    {id:uid(),title:"LEAP 英単語(改訂)",subject:"英語",unit:"語",total:2300,completed:910,startDate:dstr(addDays(today(),-25)),startDone:700,deadline:dstr(addDays(today(),90)),days:[0,1,2,3,4,5,6],color:"#46c9d6"},
+    {id:uid(),title:"鎌田の理論化学",subject:"化学",unit:"章",total:18,completed:5,startDate:dstr(addDays(today(),-14)),startDone:1,deadline:dstr(addDays(today(),30)),days:[2,4,6],color:"#5bd08a"},
   ];
   const p=DB.plans;
   DB.records=[];
@@ -926,6 +1035,7 @@ const Sync={
     DB.plans=cloud.plans||[];
     DB.records=cloud.records||[];
     if(cloud.settings)DB.settings=cloud.settings;
+    migratePlans();
     save({skipSync:true});
     render();
   },
@@ -993,6 +1103,7 @@ function updateTopSync(syncing){
 }
 
 /* ---- init ---- */
+migratePlans();
 buildNav();render();Sync.init();updateTopSync();
 setInterval(updateTopSync,30000); // 同期バッジの「○分前」更新
 </script>
