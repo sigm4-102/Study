@@ -7,7 +7,9 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Shippori+Mincho:wght@500;600;700;800&family=Zen+Kaku+Gothic+New:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
-<script src="https://accounts.google.com/gsi/client" async defer></script>
+<script defer src="https://www.gstatic.com/firebasejs/12.14.0/firebase-app-compat.js"></script>
+<script defer src="https://www.gstatic.com/firebasejs/12.14.0/firebase-auth-compat.js"></script>
+<script defer src="https://www.gstatic.com/firebasejs/12.14.0/firebase-firestore-compat.js"></script>
 <style>
 :root{
   --bg:#0c0e13; --bg-2:#10131a; --surface:#171b24; --surface-2:#1e2330;
@@ -338,6 +340,21 @@ nav button:active{transform:scale(.9)}
 
 <script>
 "use strict";
+
+/* ===================================================================
+   Firebase 設定 — コンソールの「ウェブアプリを追加」で表示される
+   firebaseConfig をそっくりここに貼り替える。
+   (apiKey 等は公開して問題ない値。アクセス制御は Firestore ルールで行う)
+   =================================================================== */
+const firebaseConfig = {
+  apiKey: "AIzaSyCWtpPCTgLS9T9ddI7AB1jtH1Os5hMKeZE",
+  authDomain: "pretend-study-next.firebaseapp.com",
+  projectId: "pretend-study-next",
+  storageBucket: "pretend-study-next.firebasestorage.app",
+  messagingSenderId: "652063506599",
+  appId: "1:652063506599:web:0ec6c8f8d0ee1bcff2db82"
+};
+
 /* ============ Storage (localStorage + in-memory fallback) ============ */
 const Store=(()=>{
   let ok=true;
@@ -789,21 +806,23 @@ function renderSyncCard(){
   // file:// 実行中
   if(location.protocol==="file:"){
     return `<div class="card"><div class="sync-head"><div class="ic">${CLOUD_ICON}</div><div><div class="ttl">クラウド同期</div><div class="st">UNAVAILABLE</div></div></div>
-    <div class="setup-warn">ローカルファイル(<code>file://</code>)実行中はGoogle認証が動作しません。クラウド同期を使うにはGitHub PagesなどにホスティングしてHTTPSで開いてください。</div></div>`;
+    <div class="setup-warn">ローカルファイル(<code>file://</code>)実行中はGoogle認証が動作しません。クラウド同期を使うには Firebase Hosting (<code>.web.app</code>) などにデプロイしてHTTPSで開いてください。</div></div>`;
   }
-  // CLIENT_ID未設定
-  if(!Sync.getClientId()){
+  // firebaseConfig 未設定
+  if(!Sync.isConfigured()){
     return `<div class="card"><div class="sync-head"><div class="ic">${CLOUD_ICON}</div><div><div class="ttl">クラウド同期</div><div class="st">SETUP REQUIRED</div></div></div>
-    <div class="sync-info" style="margin-bottom:12px">Google Cloud Console で作成した <b>OAuthクライアントID</b> を入力してください。手順は配布チャットを参照。</div>
-    <div class="field" style="margin-bottom:10px"><input id="ci-input" placeholder="xxxxx.apps.googleusercontent.com" style="font-family:var(--mono);font-size:12px"></div>
-    <button class="btn" onclick="Sync.setClientId(document.getElementById('ci-input').value)">保存する</button></div>`;
+    <div class="setup-warn">ソースコード先頭の <code>firebaseConfig</code> がまだ <code>PASTE_HERE</code> のままです。Firebaseコンソールで取得した設定値を貼り替えてください。</div></div>`;
+  }
+  // 初期化待ち
+  if(!Sync.ready){
+    return `<div class="card"><div class="sync-head"><div class="ic">${CLOUD_ICON}</div><div><div class="ttl">クラウド同期</div><div class="st">CONNECTING…</div></div></div>
+    <div class="sync-info">Firebase に接続しています…</div></div>`;
   }
   // 未ログイン
   if(!Sync.isSignedIn()){
     return `<div class="card"><div class="sync-head"><div class="ic">${CLOUD_ICON}</div><div><div class="ttl">クラウド同期</div><div class="st">NOT SIGNED IN</div></div></div>
-    <div class="sync-info" style="margin-bottom:13px">Googleアカウントでログインすると、データが <b>あなたのGoogle Drive</b> の専用領域に保存され、複数端末で自動同期されます。</div>
-    <button class="gbtn" onclick="Sync.signIn()">${G_ICON}Googleでログイン</button>
-    <button class="tiny-del" onclick="if(confirm('クライアントIDを削除しますか？')){Store.set('sn_client_id','');location.reload();}">クライアントIDを変更</button></div>`;
+    <div class="sync-info" style="margin-bottom:13px">Googleアカウントでログインすると、データが <b>クラウド(Firestore)</b> に保存され、複数端末で自動同期されます。</div>
+    <button class="gbtn" onclick="Sync.signIn()">${G_ICON}Googleでログイン</button></div>`;
   }
   // ログイン済み
   const last=Sync.lastSync?`${Math.floor((Date.now()-Sync.lastSync)/60000)}分前`:"—";
@@ -835,97 +854,64 @@ window.seedDemo=()=>{
 /* ---- util ---- */
 function esc(s){return String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));}
 
-/* ============ Cloud Sync (Google Drive appDataFolder) ============ */
-const DRIVE_FILE="studynext.json";
+/* ============ Cloud Sync (Firebase Auth + Firestore) ============ */
 const Sync={
-  token:null,fileId:null,lastSync:null,tokenClient:null,ready:false,
-  _saveT:null,_busy:false,_silent:false,_pendingCloud:null,_email:null,
-  getClientId(){return (Store.get("sn_client_id","")||"").trim();},
-  isConfigured(){return !!this.getClientId()&&location.protocol!=="file:";},
-  isSignedIn(){return !!this.token;},
-  setClientId(id){
-    Store.set("sn_client_id",id.trim());
-    toast("クライアントIDを保存しました");
-    setTimeout(()=>location.reload(),800);
+  user:null,lastSync:null,ready:false,
+  _saveT:null,_busy:false,_pendingCloud:null,_email:null,_db:null,_didInitial:false,
+  isConfigured(){
+    return location.protocol!=="file:"
+      && typeof firebaseConfig!=="undefined"
+      && firebaseConfig && firebaseConfig.apiKey
+      && firebaseConfig.apiKey!=="PASTE_HERE";
   },
+  isSignedIn(){return !!this.user;},
   init(){
     if(!this.isConfigured())return;
-    const cid=this.getClientId();
     const wait=()=>{
-      if(typeof google==="undefined"||!google.accounts||!google.accounts.oauth2){
+      if(typeof firebase==="undefined"||!firebase.auth||!firebase.firestore){
         setTimeout(wait,300);return;
       }
       try{
-        this.tokenClient=google.accounts.oauth2.initTokenClient({
-          client_id:cid,
-          scope:"https://www.googleapis.com/auth/drive.appdata",
-          callback:r=>this._onToken(r)
-        });
+        if(!firebase.apps||!firebase.apps.length)firebase.initializeApp(firebaseConfig);
+        this._db=firebase.firestore();
         this.ready=true;
-        // 前回ログイン済みなら無音で再認証を試みる
-        if(Store.get("sn_signed_in")===true){
-          this._silent=true;
-          try{this.tokenClient.requestAccessToken({prompt:"none"});}catch(e){this._silent=false;}
-        }
-      }catch(e){console.warn("GIS init failed",e);}
+        firebase.auth().onAuthStateChanged(async (user)=>{
+          if(user){
+            this.user=user;this._email=user.email;
+            if(!this._didInitial){
+              this._didInitial=true;
+              try{await this._initialSync();}catch(e){toast("同期エラー: "+(e.message||e));}
+            }
+          }else{
+            this.user=null;this._email=null;this._didInitial=false;this.lastSync=null;
+          }
+          updateTopSync();
+          if(current==="stats")renderStats();
+        });
+      }catch(e){console.warn("Firebase init failed",e);toast("Firebase初期化失敗: "+(e.message||e));}
     };
     wait();
   },
   signIn(){
     if(!this.ready){toast("初期化中…少し待って再度押してください");return;}
-    this._silent=false;
-    this.tokenClient.requestAccessToken({prompt:"consent"});
+    const provider=new firebase.auth.GoogleAuthProvider();
+    firebase.auth().signInWithPopup(provider).catch(e=>{
+      if(e.code==="auth/popup-blocked"){
+        firebase.auth().signInWithRedirect(provider);
+      }else if(e.code!=="auth/popup-closed-by-user"&&e.code!=="auth/cancelled-popup-request"){
+        toast("認証失敗: "+(e.message||e.code||"unknown"));
+      }
+    });
   },
   signOut(){
-    this.token=null;this.fileId=null;this.lastSync=null;this._email=null;
-    Store.set("sn_signed_in",false);
-    toast("ログアウトしました");
-    updateTopSync();
-    if(current==="stats")renderStats();
+    firebase.auth().signOut()
+      .then(()=>{toast("ログアウトしました");})
+      .catch(e=>toast("ログアウト失敗: "+(e.message||e)));
   },
-  async _onToken(resp){
-    const wasSilent=this._silent;this._silent=false;
-    if(resp.error||!resp.access_token){
-      if(!wasSilent)toast("認証失敗: "+(resp.error||"unknown"));
-      if(!wasSilent)Store.set("sn_signed_in",false);
-      return;
-    }
-    this.token=resp.access_token;
-    Store.set("sn_signed_in",true);
-    try{
-      await this._fetchEmail();
-      await this._findFile();
-      await this._initialSync();
-    }catch(e){
-      toast("同期エラー: "+e.message);
-    }
-    updateTopSync();
-    if(current==="stats")renderStats();
-  },
-  async _fetchEmail(){
-    try{
-      const r=await fetch("https://www.googleapis.com/oauth2/v3/userinfo",{
-        headers:{Authorization:"Bearer "+this.token}
-      });
-      if(r.ok){const d=await r.json();this._email=d.email||null;}
-    }catch(e){}
-  },
-  async _findFile(){
-    const q=encodeURIComponent("name='"+DRIVE_FILE+"'");
-    const r=await fetch("https://www.googleapis.com/drive/v3/files?spaces=appDataFolder&q="+q+"&fields=files(id,modifiedTime)",{
-      headers:{Authorization:"Bearer "+this.token}
-    });
-    if(!r.ok)throw new Error("HTTP "+r.status);
-    const d=await r.json();
-    if(d.files&&d.files[0]){this.fileId=d.files[0].id;}else{this.fileId=null;}
-  },
+  _docRef(){return this._db.collection("users").doc(this.user.uid);},
   async _download(){
-    if(!this.fileId)return null;
-    const r=await fetch(`https://www.googleapis.com/drive/v3/files/${this.fileId}?alt=media`,{
-      headers:{Authorization:"Bearer "+this.token}
-    });
-    if(!r.ok)throw new Error("HTTP "+r.status);
-    return await r.json();
+    const snap=await this._docRef().get();
+    return snap.exists?snap.data():null;
   },
   async _initialSync(){
     const cloud=await this._download();
@@ -964,56 +950,29 @@ const Sync={
     updateTopSync();
   },
   async upload(){
-    if(!this.token||this._busy)return;
+    if(!this.user||this._busy)return;
     this._busy=true;
     updateTopSync(true);
     try{
-      const content=JSON.stringify({
+      await this._docRef().set({
         plans:DB.plans,records:DB.records,settings:DB.settings,
         updatedAt:new Date().toISOString()
       });
-      let r;
-      if(this.fileId){
-        r=await fetch(`https://www.googleapis.com/upload/drive/v3/files/${this.fileId}?uploadType=media`,{
-          method:"PATCH",
-          headers:{Authorization:"Bearer "+this.token,"Content-Type":"application/json"},
-          body:content
-        });
-      }else{
-        const b="------studynext"+Date.now();
-        const meta={name:DRIVE_FILE,parents:["appDataFolder"]};
-        const body=`--${b}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(meta)}\r\n--${b}\r\nContent-Type: application/json\r\n\r\n${content}\r\n--${b}--`;
-        r=await fetch("https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart",{
-          method:"POST",
-          headers:{Authorization:"Bearer "+this.token,"Content-Type":"multipart/related; boundary="+b},
-          body
-        });
-      }
-      if(!r.ok){
-        if(r.status===401){
-          // token expired
-          this.token=null;updateTopSync();
-          toast("認証が切れました。再ログインしてください");
-          return;
-        }
-        throw new Error("HTTP "+r.status);
-      }
-      if(!this.fileId){const d=await r.json();this.fileId=d.id;}
       this.lastSync=new Date();
     }catch(e){
-      toast("同期失敗: "+e.message);
+      toast("同期失敗: "+(e.message||e));
     }finally{
       this._busy=false;
       updateTopSync();
     }
   },
   schedule(){
-    if(!this.token)return;
+    if(!this.user)return;
     clearTimeout(this._saveT);
     this._saveT=setTimeout(()=>this.upload(),3000);
   },
   manualSync(){
-    if(!this.token){toast("ログインしてください");return;}
+    if(!this.user){toast("ログインしてください");return;}
     this.upload();
   }
 };
