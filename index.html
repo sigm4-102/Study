@@ -1,0 +1,1041 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>StudyNext — 受験までを、1日1タスクから。</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Shippori+Mincho:wght@500;600;700;800&family=Zen+Kaku+Gothic+New:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<style>
+:root{
+  --bg:#0c0e13; --bg-2:#10131a; --surface:#171b24; --surface-2:#1e2330;
+  --border:#272d3c; --border-soft:#1f2533;
+  --text:#e9ecf3; --dim:#9aa3b8; --faint:#616a7e;
+  --accent:#f4b740; --accent-dim:#7a5e1e;
+  --green:#5bd08a; --teal:#46c9d6; --coral:#ff8a6b; --violet:#9d8cff;
+  --font-disp:"Shippori Mincho",serif;
+  --font:"Zen Kaku Gothic New",sans-serif;
+  --mono:"JetBrains Mono",monospace;
+  --shadow:0 10px 40px -12px rgba(0,0,0,.7);
+  --r:18px;
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{height:100%}
+body{
+  font-family:var(--font);background:var(--bg);color:var(--text);
+  line-height:1.6;overflow:hidden;
+  background-image:
+    radial-gradient(1200px 600px at 80% -10%, rgba(244,183,64,.06), transparent 60%),
+    radial-gradient(900px 500px at -10% 110%, rgba(70,201,214,.05), transparent 60%);
+}
+button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit}
+input,textarea,select{font-family:inherit;font-size:16px}
+::-webkit-scrollbar{width:0;height:0}
+
+/* App shell — responsive (phone frame ↔ desktop sidebar) */
+#app{
+  display:grid;
+  grid-template-columns:1fr;
+  grid-template-rows:auto 1fr auto;
+  grid-template-areas:"topbar" "main" "nav";
+  max-width:480px;margin:0 auto;height:100dvh;
+  position:relative;background:var(--bg);
+  box-shadow:0 0 80px -20px rgba(0,0,0,.9);
+}
+.topbar{grid-area:topbar}
+main{grid-area:main}
+nav{grid-area:nav}
+
+@media(min-width:520px) and (max-width:899px){
+  #app{border-left:1px solid var(--border-soft);border-right:1px solid var(--border-soft)}
+}
+
+/* Top bar */
+.topbar{
+  padding:max(14px,env(safe-area-inset-top)) 20px 12px;
+  display:flex;align-items:center;justify-content:space-between;
+  border-bottom:1px solid var(--border-soft);background:rgba(12,14,19,.85);backdrop-filter:blur(12px);
+  z-index:10;
+}
+.brand{display:flex;align-items:center;gap:9px;font-weight:900;letter-spacing:-.02em;font-size:18px}
+.brand .mark{
+  width:26px;height:26px;border-radius:8px;display:grid;place-items:center;
+  background:linear-gradient(135deg,var(--accent),#e89a2a);color:#1a1205;font-weight:900;font-size:15px;
+  box-shadow:0 4px 14px -4px rgba(244,183,64,.6);font-family:var(--font-disp);
+}
+.brand .next{color:var(--accent)}
+.topdate{font-family:var(--mono);font-size:12px;color:var(--dim);text-align:right;line-height:1.3}
+.topdate b{color:var(--text);font-weight:700}
+
+/* Scroll area */
+main{overflow-y:auto;overflow-x:hidden;padding:20px 18px 24px;min-height:0}
+.screen{display:none;animation:fade .35s ease}
+.screen.active{display:block}
+@keyframes fade{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+
+/* Section headers */
+.shead{display:flex;align-items:baseline;gap:10px;margin:4px 0 16px}
+.shead .num{font-family:var(--mono);font-size:11px;color:var(--accent);letter-spacing:.15em}
+.shead h2{font-family:var(--font-disp);font-size:23px;font-weight:800;letter-spacing:-.01em}
+.shead .en{font-family:var(--mono);font-size:10px;color:var(--faint);letter-spacing:.18em;text-transform:uppercase;margin-left:auto;align-self:center}
+
+/* Cards */
+.card{background:var(--surface);border:1px solid var(--border-soft);border-radius:var(--r);padding:18px}
+.card+.card{margin-top:13px}
+
+/* Hero (home) */
+.hero{
+  background:linear-gradient(160deg,var(--surface-2),var(--surface));
+  border:1px solid var(--border);border-radius:22px;padding:22px 20px;position:relative;overflow:hidden;
+}
+.hero::after{content:"";position:absolute;inset:0;background:radial-gradient(400px 200px at 100% 0,rgba(244,183,64,.12),transparent 70%);pointer-events:none}
+.hero .greet{font-size:13px;color:var(--dim)}
+.hero .big{font-family:var(--font-disp);font-size:27px;font-weight:800;line-height:1.3;margin:2px 0 4px}
+.hero .big em{color:var(--accent);font-style:normal}
+.statrow{display:flex;gap:10px;margin-top:18px}
+.stat{flex:1;background:rgba(255,255,255,.025);border:1px solid var(--border-soft);border-radius:14px;padding:12px}
+.stat .v{font-family:var(--mono);font-size:22px;font-weight:700}
+.stat .v small{font-size:12px;color:var(--dim);font-weight:400}
+.stat .l{font-size:11px;color:var(--faint);margin-top:2px}
+.stat .v.acc{color:var(--accent)} .stat .v.grn{color:var(--green)} .stat .v.tl{color:var(--teal)}
+
+/* Task list */
+.task{display:flex;align-items:center;gap:13px;padding:13px 0;border-bottom:1px solid var(--border-soft)}
+.task:last-child{border-bottom:none}
+.task .check{
+  width:24px;height:24px;border-radius:8px;border:2px solid var(--border);flex:0 0 auto;
+  display:grid;place-items:center;transition:.18s;cursor:pointer;
+}
+.task .check.done{background:var(--green);border-color:var(--green)}
+.task .check svg{opacity:0;transition:.18s}
+.task .check.done svg{opacity:1}
+.task .body{flex:1;min-width:0}
+.task .t{font-weight:700;font-size:15px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.task.complete .t{color:var(--faint);text-decoration:line-through}
+.task .sub{font-size:12px;color:var(--dim);display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.dot{width:7px;height:7px;border-radius:50%;flex:0 0 auto}
+.task .q{font-family:var(--mono);font-size:13px;color:var(--accent);flex:0 0 auto;font-weight:500}
+.qbtns{display:flex;gap:6px;flex:0 0 auto}
+.qbtns button{width:30px;height:30px;border-radius:9px;background:var(--surface-2);border:1px solid var(--border-soft);font-size:17px;font-weight:700;display:grid;place-items:center;color:var(--dim)}
+.qbtns button:active{transform:scale(.9)}
+
+/* Progress bar */
+.pbar{height:7px;border-radius:99px;background:var(--surface-2);overflow:hidden;margin-top:9px}
+.pbar i{display:block;height:100%;border-radius:99px;background:linear-gradient(90deg,var(--accent),#e89a2a);transition:width .5s cubic-bezier(.2,.8,.2,1)}
+.pbar i.grn{background:linear-gradient(90deg,var(--green),#3fae6e)}
+
+/* Plan card */
+.plan .top{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
+.plan .ttl{font-weight:700;font-size:16px}
+.plan .sub{font-size:12px;color:var(--dim);margin-top:1px}
+.badge{font-family:var(--mono);font-size:10px;padding:3px 8px;border-radius:99px;background:var(--surface-2);border:1px solid var(--border-soft);color:var(--dim);white-space:nowrap}
+.plan .meta{display:flex;justify-content:space-between;font-size:12px;color:var(--dim);margin-top:9px;font-family:var(--mono)}
+.plan .meta .due{color:var(--coral)}
+.plan .meta .due.safe{color:var(--green)}
+.plan .actions{display:flex;gap:8px;margin-top:13px}
+.plan .actions button{flex:1;padding:9px;border-radius:11px;font-size:13px;font-weight:700;background:var(--surface-2);border:1px solid var(--border-soft);color:var(--dim)}
+.plan .actions button.go{background:var(--accent);color:#1a1205;border-color:var(--accent)}
+.plan .actions button:active{transform:scale(.97)}
+
+/* Buttons */
+.btn{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:15px;border-radius:14px;font-weight:700;font-size:15px;background:var(--accent);color:#1a1205;box-shadow:0 6px 20px -8px rgba(244,183,64,.7);transition:.15s}
+.btn:active{transform:scale(.98)}
+.btn.ghost{background:var(--surface);color:var(--text);border:1px solid var(--border);box-shadow:none}
+.btn.sm{padding:11px;font-size:14px}
+
+/* Empty state */
+.empty{text-align:center;padding:38px 20px;color:var(--faint)}
+.empty .ico{font-size:40px;margin-bottom:10px;opacity:.8}
+.empty p{font-size:14px;margin-bottom:18px;color:var(--dim)}
+
+/* Pomodoro */
+.pomo{text-align:center;padding:8px 0}
+.ring-wrap{position:relative;width:248px;height:248px;margin:14px auto 6px}
+.ring-wrap svg{transform:rotate(-90deg)}
+.ring-bg{fill:none;stroke:var(--surface-2);stroke-width:10}
+.ring-fg{fill:none;stroke:var(--accent);stroke-width:10;stroke-linecap:round;transition:stroke-dashoffset 1s linear,stroke .4s}
+.ring-fg.brk{stroke:var(--teal)}
+.ring-mid{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
+.ring-mid .mode{font-family:var(--mono);font-size:12px;letter-spacing:.2em;color:var(--accent);text-transform:uppercase}
+.ring-mid .mode.brk{color:var(--teal)}
+.ring-mid .time{font-family:var(--mono);font-size:54px;font-weight:700;letter-spacing:-.02em;line-height:1}
+.ring-mid .sess{font-size:12px;color:var(--faint);margin-top:6px}
+.pomo-target{font-size:13px;color:var(--dim);margin:6px 0 18px}
+.pomo-target b{color:var(--text)}
+.pomo-ctrl{display:flex;gap:10px;justify-content:center}
+.cbtn{width:60px;height:60px;border-radius:50%;display:grid;place-items:center;background:var(--surface);border:1px solid var(--border)}
+.cbtn.main{width:74px;height:74px;background:var(--accent);border-color:var(--accent);box-shadow:0 8px 24px -8px rgba(244,183,64,.7)}
+.cbtn.main.brk{background:var(--teal);box-shadow:0 8px 24px -8px rgba(70,201,214,.6)}
+.cbtn:active{transform:scale(.93)}
+.cbtn svg{width:26px;height:26px}
+.cbtn.main svg{width:30px;height:30px;color:#1a1205}
+
+/* Segmented / rating */
+.field{margin-bottom:15px}
+.field label{display:block;font-size:13px;color:var(--dim);margin-bottom:7px;font-weight:500}
+.field input,.field textarea,.field select{
+  width:100%;padding:13px;border-radius:12px;background:var(--bg-2);border:1px solid var(--border);color:var(--text);
+}
+.field input:focus,.field textarea:focus,.field select:focus{outline:none;border-color:var(--accent)}
+.field textarea{resize:vertical;min-height:64px;line-height:1.5}
+.row2{display:flex;gap:10px}.row2>*{flex:1}
+.rate{display:flex;gap:7px}
+.rate button{flex:1;padding:11px 0;border-radius:11px;background:var(--bg-2);border:1px solid var(--border);font-weight:700;font-family:var(--mono);color:var(--dim);transition:.12s}
+.rate button.on{background:var(--accent);color:#1a1205;border-color:var(--accent)}
+.rate.diff button.on{background:var(--coral);color:#2a1006;border-color:var(--coral)}
+.daypick{display:flex;gap:6px}
+.daypick button{flex:1;padding:9px 0;border-radius:10px;background:var(--bg-2);border:1px solid var(--border);font-size:13px;color:var(--dim);font-weight:700}
+.daypick button.on{background:var(--surface-2);color:var(--accent);border-color:var(--accent-dim)}
+
+/* Analytics */
+.bigstat{display:grid;grid-template-columns:1fr 1fr;gap:11px}
+.bigstat .s{background:var(--surface);border:1px solid var(--border-soft);border-radius:15px;padding:15px}
+.bigstat .s .v{font-family:var(--mono);font-size:25px;font-weight:700}
+.bigstat .s .v small{font-size:13px;color:var(--dim);font-weight:400}
+.bigstat .s .l{font-size:12px;color:var(--faint);margin-top:1px}
+.chart{display:flex;align-items:flex-end;gap:5px;height:130px;margin-top:6px;padding-top:10px}
+.chart .bar{flex:1;display:flex;flex-direction:column;align-items:center;gap:5px;height:100%;justify-content:flex-end}
+.chart .bar .fill{width:100%;max-width:22px;border-radius:5px 5px 0 0;background:linear-gradient(180deg,var(--accent),var(--accent-dim));min-height:3px;transition:height .6s cubic-bezier(.2,.8,.2,1)}
+.chart .bar .fill.today{background:linear-gradient(180deg,var(--green),#3fae6e)}
+.chart .bar .lab{font-family:var(--mono);font-size:9px;color:var(--faint)}
+.distrow{margin-top:13px}
+.distrow .dl{display:flex;justify-content:space-between;font-size:13px;margin-bottom:5px}
+.distrow .dl .nm{font-weight:500}.distrow .dl .vv{font-family:var(--mono);color:var(--dim)}
+.distrow .db{height:9px;border-radius:99px;background:var(--surface-2);overflow:hidden}
+.distrow .db i{display:block;height:100%;border-radius:99px}
+.distrow+.distrow{margin-top:11px}
+
+/* Bottom nav (mobile) → Sidebar (desktop) */
+nav{
+  display:flex;
+  background:rgba(16,19,26,.92);backdrop-filter:blur(16px);border-top:1px solid var(--border);
+  padding:8px 6px max(8px,env(safe-area-inset-bottom));z-index:20;
+}
+nav button{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;padding:5px 0;color:var(--faint);font-size:10px;font-weight:700;transition:.15s}
+nav button svg{width:23px;height:23px}
+nav button.on{color:var(--accent)}
+nav button:active{transform:scale(.9)}
+.nav-brand{display:none}
+
+@media(min-width:900px){
+  body{overflow:hidden}
+  #app{
+    max-width:none;
+    grid-template-columns:240px 1fr;
+    grid-template-rows:auto 1fr;
+    grid-template-areas:
+      "side topbar"
+      "side main";
+    box-shadow:none;
+  }
+  .topbar{padding:22px 36px 14px;border-bottom:1px solid var(--border-soft)}
+  .topbar .brand{display:none}
+  main{padding:28px 36px 40px}
+  .screen{max-width:680px;margin:0 auto}
+  main::-webkit-scrollbar,.sheet::-webkit-scrollbar{width:8px}
+  main::-webkit-scrollbar-thumb,.sheet::-webkit-scrollbar-thumb{background:var(--border);border-radius:99px}
+  nav{
+    grid-area:side;
+    flex-direction:column;align-items:stretch;
+    padding:22px 16px;
+    border-top:none;border-right:1px solid var(--border-soft);
+    background:var(--bg-2);
+    gap:3px;
+  }
+  .nav-brand{
+    display:flex;align-items:center;gap:10px;
+    padding:6px 12px 22px;
+    font-weight:900;font-size:19px;letter-spacing:-.02em;
+  }
+  .nav-brand .mark{
+    width:30px;height:30px;border-radius:9px;display:grid;place-items:center;
+    background:linear-gradient(135deg,var(--accent),#e89a2a);color:#1a1205;font-weight:900;font-size:16px;
+    box-shadow:0 4px 14px -4px rgba(244,183,64,.6);font-family:var(--font-disp);
+  }
+  .nav-brand .next{color:var(--accent)}
+  nav button{
+    flex:0 0 auto;flex-direction:row;justify-content:flex-start;
+    gap:13px;padding:11px 14px;border-radius:11px;font-size:14px;
+  }
+  nav button svg{width:21px;height:21px}
+  nav button.on{background:rgba(244,183,64,.1)}
+  nav button:not(.on):hover{background:rgba(255,255,255,.03);color:var(--dim);cursor:pointer}
+  .overlay{align-items:center}
+  .sheet{border-radius:24px;max-width:520px;margin:0 16px;max-height:85dvh}
+}
+
+/* Modal */
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);backdrop-filter:blur(4px);z-index:50;display:none;align-items:flex-end;justify-content:center}
+.overlay.show{display:flex;animation:fade .2s}
+@media(min-width:520px){.overlay{align-items:center}}
+.sheet{position:relative;width:100%;max-width:480px;background:var(--bg-2);border:1px solid var(--border);border-radius:24px 24px 0 0;padding:8px 20px max(22px,env(safe-area-inset-bottom));max-height:90dvh;overflow-y:auto;animation:slideup .3s cubic-bezier(.2,.8,.2,1)}
+.sheet-x{position:absolute;top:12px;right:12px;width:34px;height:34px;border-radius:50%;background:var(--surface-2);color:var(--dim);font-size:15px;display:grid;place-items:center;border:1px solid var(--border-soft);font-weight:700;z-index:5;transition:.15s}
+.sheet-x:hover{color:var(--text);background:var(--surface)}
+.sheet-x:active{transform:scale(.92)}
+@media(min-width:520px){.sheet{border-radius:24px;margin:0 16px}}
+@keyframes slideup{from{transform:translateY(40px);opacity:.5}to{transform:none;opacity:1}}
+.sheet .grip{width:38px;height:4px;border-radius:99px;background:var(--border);margin:8px auto 16px}
+.sheet h3{font-family:var(--font-disp);font-size:20px;font-weight:800;margin-bottom:4px}
+.sheet .desc{font-size:13px;color:var(--dim);margin-bottom:18px}
+
+.toast{position:absolute;bottom:90px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--surface-2);border:1px solid var(--border);color:var(--text);padding:11px 18px;border-radius:99px;font-size:13px;font-weight:700;z-index:60;opacity:0;transition:.3s;box-shadow:var(--shadow);pointer-events:none;white-space:nowrap}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+.note{font-size:11px;color:var(--faint);text-align:center;margin-top:16px;line-height:1.6}
+.note a{color:var(--dim)}
+.linkrow{display:flex;gap:8px;font-size:12px;justify-content:center;margin-top:8px}
+.tiny-del{font-size:12px;color:var(--faint);text-align:center;width:100%;padding:8px;margin-top:4px}
+
+/* Cloud sync */
+.sync-badge{font-family:var(--mono);font-size:10px;padding:3px 8px;border-radius:99px;letter-spacing:.04em;margin-right:8px;white-space:nowrap;display:inline-block}
+.sync-badge.dim{background:var(--surface-2);color:var(--faint);border:1px solid var(--border-soft)}
+.sync-badge.ok{background:rgba(91,208,138,.1);color:var(--green);border:1px solid rgba(91,208,138,.25)}
+.sync-badge.warn{background:rgba(255,138,107,.1);color:var(--coral);border:1px solid rgba(255,138,107,.25)}
+.sync-badge.syncing{background:rgba(70,201,214,.1);color:var(--teal);border:1px solid rgba(70,201,214,.25)}
+.sync-head{display:flex;align-items:center;gap:11px;margin-bottom:13px}
+.sync-head .ic{width:34px;height:34px;border-radius:10px;background:var(--surface-2);display:grid;place-items:center;color:var(--teal)}
+.sync-head .ic svg{width:18px;height:18px}
+.sync-head .ttl{font-weight:700;font-size:15px}
+.sync-head .st{font-size:11px;color:var(--dim);font-family:var(--mono);margin-top:1px}
+.gbtn{display:flex;align-items:center;justify-content:center;gap:10px;width:100%;padding:13px;border-radius:12px;background:#fff;color:#1f1f1f;font-weight:700;font-size:14px;border:1px solid #dadce0;transition:.15s}
+.gbtn:hover{background:#f8f9fa}
+.gbtn:active{transform:scale(.98)}
+.gbtn svg{width:18px;height:18px;flex:0 0 auto}
+.sync-info{font-size:13px;color:var(--dim);line-height:1.6}
+.sync-info b{color:var(--text);font-weight:700;word-break:break-all}
+.sync-actions{display:flex;gap:8px;margin-top:12px}
+.sync-actions button{flex:1;padding:10px;border-radius:11px;font-size:13px;font-weight:700;background:var(--surface-2);border:1px solid var(--border-soft);color:var(--dim);transition:.12s}
+.sync-actions button:active{transform:scale(.97)}
+.sync-actions button.primary{background:var(--accent);color:#1a1205;border-color:var(--accent)}
+.setup-warn{background:rgba(255,138,107,.06);border:1px solid rgba(255,138,107,.2);border-radius:12px;padding:13px 14px;font-size:13px;color:var(--coral);line-height:1.65;margin-top:10px}
+.setup-warn code{background:rgba(0,0,0,.3);padding:1px 6px;border-radius:4px;font-family:var(--mono);font-size:12px;color:var(--accent)}
+</style>
+</head>
+<body>
+<div id="app">
+  <div class="topbar">
+    <div class="brand"><span class="mark">S</span>Study<span class="next">Next</span></div>
+    <div style="display:flex;align-items:center"><span class="sync-badge dim" id="syncbadge">ローカル保存</span><div class="topdate" id="topdate"></div></div>
+  </div>
+
+  <main>
+    <!-- HOME -->
+    <section class="screen active" id="s-home"></section>
+    <!-- PLANS -->
+    <section class="screen" id="s-plans"></section>
+    <!-- FOCUS -->
+    <section class="screen" id="s-focus"></section>
+    <!-- ANALYTICS -->
+    <section class="screen" id="s-stats"></section>
+  </main>
+
+  <nav id="nav"></nav>
+  <div class="overlay" id="overlay"><div class="sheet" id="sheet"></div></div>
+  <div class="toast" id="toast"></div>
+</div>
+
+<script>
+"use strict";
+/* ============ Storage (localStorage + in-memory fallback) ============ */
+const Store=(()=>{
+  let ok=true;
+  try{const k="__sn_test";localStorage.setItem(k,"1");localStorage.removeItem(k);}catch(e){ok=false;}
+  const mem={};
+  return {
+    get(k,def){
+      try{ if(ok){const v=localStorage.getItem(k);return v==null?def:JSON.parse(v);} }catch(e){}
+      return k in mem?mem[k]:def;
+    },
+    set(k,v){
+      try{ if(ok){localStorage.setItem(k,JSON.stringify(v));return;} }catch(e){}
+      mem[k]=v;
+    },
+    persistent:ok
+  };
+})();
+
+/* ============ State ============ */
+const DB={
+  plans:Store.get("sn_plans",[]),
+  records:Store.get("sn_records",[]),
+  settings:Store.get("sn_settings",{focus:25,brk:5}),
+};
+function save(opts){
+  Store.set("sn_plans",DB.plans);Store.set("sn_records",DB.records);
+  Store.set("sn_settings",DB.settings);
+  if(!(opts&&opts.skipSync)&&window.Sync&&Sync.isSignedIn())Sync.schedule();
+}
+const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,7);
+
+/* ============ Date helpers (local) ============ */
+const pad=n=>String(n).padStart(2,"0");
+function dstr(d){return d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate());}
+function parseD(s){const[a,b,c]=s.split("-").map(Number);return new Date(a,b-1,c);}
+const today=()=>{const d=new Date();d.setHours(0,0,0,0);return d;};
+const todayStr=()=>dstr(today());
+function addDays(d,n){const x=new Date(d);x.setDate(x.getDate()+n);return x;}
+function daysBetween(a,b){return Math.round((b-a)/86400000);}
+function countStudyDays(from,to,days){ // inclusive, days=array of weekday 0-6 allowed
+  if(to<from)return 0;let c=0,d=new Date(from);
+  while(d<=to){if(days.includes(d.getDay()))c++;d=addDays(d,1);}
+  return c;
+}
+const WD=["日","月","火","水","木","金","土"];
+
+/* ============ Reverse-calc ============ */
+function planCalc(p){
+  const t=today(),dl=parseD(p.deadline);
+  const remaining=Math.max(0,p.total-p.completed);
+  const studyDays=countStudyDays(t,dl,p.days);
+  const overdue=dl<t;
+  let daily;
+  if(remaining<=0)daily=0;
+  else if(overdue||studyDays<=0)daily=remaining;
+  else daily=Math.ceil(remaining/studyDays);
+  const isStudyDay=p.days.includes(t.getDay());
+  const doneToday=DB.records.filter(r=>r.planId===p.id&&r.date===todayStr())
+                            .reduce((s,r)=>s+(r.units||0),0);
+  const todayQuota=(isStudyDay||overdue)?daily:0;
+  const todayLeft=Math.max(0,todayQuota-doneToday);
+  return {remaining,studyDays,daily,overdue,isStudyDay,doneToday,todayQuota,todayLeft,
+          daysLeft:daysBetween(t,dl),pct:p.total?Math.min(100,Math.round(p.completed/p.total*100)):0};
+}
+
+/* ============ Toast ============ */
+let toastT;
+function toast(msg){const el=document.getElementById("toast");el.textContent=msg;el.classList.add("show");clearTimeout(toastT);toastT=setTimeout(()=>el.classList.remove("show"),1800);}
+
+/* ============ Modal ============ */
+const overlay=document.getElementById("overlay"),sheet=document.getElementById("sheet");
+function openSheet(html){
+  sheet.innerHTML='<div class="grip"></div><button class="sheet-x" onclick="closeSheet()" aria-label="閉じる">✕</button>'+html;
+  overlay.classList.add("show");
+}
+function closeSheet(){overlay.classList.remove("show");}
+// Backdrop close: only if pointer goes DOWN and UP both on the overlay itself
+// (prevents accidental close when dragging from sheet/input to backdrop)
+let _downOnBg=false;
+overlay.addEventListener("pointerdown",e=>{_downOnBg=(e.target===overlay);});
+overlay.addEventListener("pointerup",e=>{
+  if(_downOnBg&&e.target===overlay)closeSheet();
+  _downOnBg=false;
+});
+document.addEventListener("keydown",e=>{
+  if(e.key==="Escape"&&overlay.classList.contains("show"))closeSheet();
+});
+
+/* ============ Icons ============ */
+const I={
+  home:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V20h14V9.5"/></svg>',
+  plan:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/></svg>',
+  focus:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="8"/><path d="M12 13V9M9 2h6"/></svg>',
+  stats:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>',
+  play:'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 5v14l12-7z"/></svg>',
+  pause:'<svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg>',
+  reset:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg>',
+  skip:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 4v16l10-8z"/><line x1="19" y1="5" x2="19" y2="19"/></svg>',
+  check:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#0c0e13" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>',
+};
+
+/* ============ Navigation ============ */
+const TABS=[["home","ホーム"],["plans","計画"],["focus","集中"],["stats","分析"]];
+const ICON={home:I.home,plans:I.plan,focus:I.focus,stats:I.stats};
+let current="home";
+function buildNav(){
+  document.getElementById("nav").innerHTML=
+    '<div class="nav-brand"><span class="mark">S</span>Study<span class="next">Next</span></div>'+
+    TABS.map(([k,l])=>
+      `<button data-tab="${k}" class="${k===current?'on':''}">${ICON[k]}<span>${l}</span></button>`).join("");
+  document.querySelectorAll("nav button").forEach(b=>b.onclick=()=>go(b.dataset.tab));
+}
+function go(tab){
+  current=tab;
+  document.querySelectorAll(".screen").forEach(s=>s.classList.remove("active"));
+  document.getElementById("s-"+tab).classList.add("active");
+  document.querySelectorAll("nav button").forEach(b=>b.classList.toggle("on",b.dataset.tab===tab));
+  render();
+}
+
+/* ============ Streak & totals ============ */
+function streak(){
+  const set=new Set(DB.records.map(r=>r.date));
+  let d=today();if(!set.has(dstr(d)))d=addDays(d,-1);
+  let n=0;while(set.has(dstr(d))){n++;d=addDays(d,-1);}return n;
+}
+function todayFocus(){return DB.records.filter(r=>r.date===todayStr()).reduce((s,r)=>s+(r.dur||0),0);}
+const fmtMin=m=>m>=60?`${Math.floor(m/60)}<small>時間</small>${m%60?(m%60)+'<small>分</small>':''}`:`${m}<small>分</small>`;
+
+/* ============ RENDER ============ */
+function render(){
+  document.getElementById("topdate").innerHTML=(()=>{const d=new Date();return `<b>${d.getMonth()+1}/${d.getDate()}</b> (${WD[d.getDay()]})`;})();
+  if(current==="home")renderHome();
+  else if(current==="plans")renderPlans();
+  else if(current==="focus")renderFocus();
+  else if(current==="stats")renderStats();
+}
+
+/* ---- HOME ---- */
+function renderHome(){
+  const el=document.getElementById("s-home");
+  const hour=new Date().getHours();
+  const greet=hour<5?"おつかれさま":hour<11?"おはよう":hour<18?"こんにちは":"今夜もがんばろう";
+  const fm=todayFocus(),stk=streak();
+  const tasks=DB.plans.map(p=>({p,c:planCalc(p)})).filter(x=>x.c.todayQuota>0&&x.c.remaining>0);
+  const allDone=tasks.length&&tasks.every(x=>x.c.todayLeft<=0);
+
+  let h=`<div class="hero">
+    <div class="greet">${greet}、からあげ。</div>
+    <div class="big">${tasks.length?`今日のタスクは<br><em>${tasks.length}件</em>。`:`今日の<br><em>計画</em>を立てよう。`}</div>
+    <div class="statrow">
+      <div class="stat"><div class="v acc">${fmtMin(fm)}</div><div class="l">今日の集中</div></div>
+      <div class="stat"><div class="v grn">${stk}<small>日</small></div><div class="l">連続記録</div></div>
+      <div class="stat"><div class="v tl">${DB.records.length}</div><div class="l">総セッション</div></div>
+    </div>
+  </div>`;
+
+  h+=`<div class="shead" style="margin-top:26px"><span class="num">01</span><h2>今日のノルマ</h2><span class="en">Today</span></div>`;
+  if(!DB.plans.length){
+    h+=`<div class="card"><div class="empty"><div class="ico">🎯</div><p>まだ計画がありません。<br>志望校から逆算して、毎日のノルマを自動生成します。</p>
+      <button class="btn" onclick="go('plans')">計画を作成する</button>
+      <button class="tiny-del" onclick="seedDemo()">サンプルデータを入れて試す</button></div></div>`;
+  }else if(!tasks.length){
+    h+=`<div class="card"><div class="empty"><div class="ico">🌙</div><p>今日のノルマはありません。<br>（学習日に設定されていないか、すべて完了済み）</p></div></div>`;
+  }else{
+    h+=`<div class="card">`;
+    tasks.forEach(({p,c})=>{
+      const done=c.todayLeft<=0;
+      h+=`<div class="task ${done?'complete':''}">
+        <div class="check ${done?'done':''}" onclick="toggleTask('${p.id}')">${I.check}</div>
+        <div class="body">
+          <div class="t">${esc(p.title)}</div>
+          <div class="sub"><span class="dot" style="background:${p.color}"></span>${esc(p.subject)}
+            <span style="color:var(--faint)">·</span> 残り${c.daysLeft}日</div>
+        </div>
+        <div class="q">${c.doneToday}/${c.todayQuota}<span style="color:var(--faint)"> ${esc(p.unit)}</span></div>
+        <div class="qbtns"><button onclick="quickLog('${p.id}',1)">＋</button></div>
+      </div>`;
+    });
+    h+=`</div>`;
+    if(allDone)h+=`<div class="note" style="color:var(--green)">✓ 今日のノルマ完了。おつかれさま。</div>`;
+    h+=`<button class="btn" style="margin-top:14px" onclick="go('focus')">${I.focus} ポモドーロを始める</button>`;
+  }
+  el.innerHTML=h;
+}
+window.toggleTask=id=>{const p=DB.plans.find(x=>x.id===id),c=planCalc(p);if(c.todayLeft>0)quickLog(id,c.todayLeft);else toast("もう完了しています");};
+window.quickLog=(id,n)=>{
+  const p=DB.plans.find(x=>x.id===id);
+  DB.records.push({id:uid(),planId:id,date:todayStr(),units:n,dur:0,conc:0,diff:0,ref:"",ts:new Date().toISOString()});
+  p.completed=Math.min(p.total,p.completed+n);save();toast(`+${n} ${p.unit} 記録`);renderHome();
+};
+
+/* ---- PLANS ---- */
+function renderPlans(){
+  const el=document.getElementById("s-plans");
+  let h=`<div class="shead"><span class="num">02</span><h2>逆算プラン</h2><span class="en">Planning</span></div>`;
+  h+=`<button class="btn" style="margin-bottom:16px" onclick="planForm()">＋ 新しい計画</button>`;
+  if(!DB.plans.length){
+    h+=`<div class="card"><div class="empty"><div class="ico">📚</div><p>教材と締切を入力するだけで、<br>残り日数から最適な1日の量を自動計算します。</p></div></div>`;
+  }else{
+    DB.plans.forEach(p=>{
+      const c=planCalc(p);
+      const dueClass=c.daysLeft<7?'':'safe';
+      h+=`<div class="card plan">
+        <div class="top">
+          <div><div class="ttl">${esc(p.title)}</div>
+          <div class="sub"><span class="dot" style="background:${p.color};display:inline-block;margin-right:6px;vertical-align:middle"></span>${esc(p.subject)} · 全${p.total}${esc(p.unit)}</div></div>
+          <span class="badge">${c.pct}%</span>
+        </div>
+        <div class="pbar"><i class="${c.remaining<=0?'grn':''}" style="width:${c.pct}%"></i></div>
+        <div class="meta">
+          <span>1日 <b style="color:var(--accent)">${c.daily}${esc(p.unit)}</b> ペース</span>
+          <span class="due ${dueClass}">${c.overdue?'期限超過':c.daysLeft===0?'今日が締切':'あと'+c.daysLeft+'日'}</span>
+        </div>
+        <div class="actions">
+          <button onclick="quickLog('${p.id}',1)">＋1 記録</button>
+          <button onclick="planForm('${p.id}')">編集</button>
+          <button class="go" onclick="startFocusFor('${p.id}')">集中</button>
+        </div>
+      </div>`;
+    });
+  }
+  el.innerHTML=h;
+}
+function planForm(id){
+  const p=id?DB.plans.find(x=>x.id===id):null;
+  const def=p||{title:"",subject:"",total:100,unit:"問",completed:0,deadline:dstr(addDays(today(),30)),days:[1,2,3,4,5,6],color:"#f4b740"};
+  const colors=["#f4b740","#5bd08a","#46c9d6","#9d8cff","#ff8a6b"];
+  openSheet(`<h3>${p?'計画を編集':'新しい計画'}</h3>
+    <div class="desc">締切までの残り日数から、1日のノルマを自動で逆算します。</div>
+    <div class="field"><label>計画名</label><input id="f-title" placeholder="例: チャート式 数学IIB" value="${esc(def.title)}"></div>
+    <div class="row2">
+      <div class="field"><label>教科</label><input id="f-subject" placeholder="数学" value="${esc(def.subject)}"></div>
+      <div class="field"><label>単位</label><input id="f-unit" placeholder="問" value="${esc(def.unit)}"></div>
+    </div>
+    <div class="row2">
+      <div class="field"><label>総量</label><input id="f-total" type="number" inputmode="numeric" value="${def.total}"></div>
+      <div class="field"><label>完了済み</label><input id="f-completed" type="number" inputmode="numeric" value="${def.completed}"></div>
+    </div>
+    <div class="field"><label>締切日</label><input id="f-deadline" type="date" value="${def.deadline}"></div>
+    <div class="field"><label>学習する曜日</label>
+      <div class="daypick" id="f-days">${WD.map((w,i)=>`<button data-d="${i}" class="${def.days.includes(i)?'on':''}">${w}</button>`).join("")}</div>
+    </div>
+    <div class="field"><label>カラー</label>
+      <div class="daypick" id="f-color">${colors.map(c=>`<button data-c="${c}" class="${c===def.color?'on':''}" style="background:${c}22;border-color:${c===def.color?c:'var(--border)'}"><span style="display:inline-block;width:18px;height:18px;border-radius:50%;background:${c}"></span></button>`).join("")}</div>
+    </div>
+    <button class="btn" onclick="savePlan('${id||''}')">${p?'更新する':'計画を作成'}</button>
+    ${p?`<button class="tiny-del" onclick="delPlan('${id}')">この計画を削除</button>`:''}`);
+  document.querySelectorAll("#f-days button").forEach(b=>b.onclick=()=>b.classList.toggle("on"));
+  document.querySelectorAll("#f-color button").forEach(b=>b.onclick=()=>{
+    document.querySelectorAll("#f-color button").forEach(x=>{x.classList.remove("on");x.style.borderColor="var(--border)";});
+    b.classList.add("on");b.style.borderColor=b.dataset.c;});
+}
+window.planForm=planForm;
+window.savePlan=id=>{
+  const g=i=>document.getElementById(i).value.trim();
+  const title=g("f-title")||"無題の計画";
+  const days=[...document.querySelectorAll("#f-days button.on")].map(b=>+b.dataset.d);
+  const color=document.querySelector("#f-color button.on")?.dataset.c||"#f4b740";
+  const data={title,subject:g("f-subject")||"その他",unit:g("f-unit")||"問",
+    total:Math.max(1,+g("f-total")||1),completed:Math.max(0,+g("f-completed")||0),
+    deadline:g("f-deadline")||dstr(addDays(today(),30)),days:days.length?days:[1,2,3,4,5],color};
+  if(id){Object.assign(DB.plans.find(x=>x.id===id),data);}
+  else{DB.plans.push({id:uid(),...data});}
+  save();closeSheet();toast(id?"更新しました":"計画を作成しました");renderPlans();
+};
+window.delPlan=id=>{DB.plans=DB.plans.filter(x=>x.id!==id);save();closeSheet();toast("削除しました");renderPlans();};
+
+/* ---- FOCUS (Pomodoro) ---- */
+let timer={running:false,mode:"focus",sec:DB.settings.focus*60,total:DB.settings.focus*60,sessions:0,planId:null,intv:null,elapsed:0};
+window.startFocusFor=id=>{timer.planId=id;go("focus");};
+function renderFocus(){
+  const el=document.getElementById("s-focus");
+  const R=110,C=2*Math.PI*R,off=C*(1-timer.sec/timer.total);
+  const m=Math.floor(timer.sec/60),s=timer.sec%60;
+  const isBrk=timer.mode==="break";
+  const plan=DB.plans.find(p=>p.id===timer.planId);
+  const planOpts=`<option value="">教科を選択しない</option>`+DB.plans.map(p=>`<option value="${p.id}" ${p.id===timer.planId?'selected':''}>${esc(p.title)}</option>`).join("");
+  el.innerHTML=`
+  <div class="shead"><span class="num">03</span><h2>ポモドーロ集中</h2><span class="en">Focus</span></div>
+  <div class="card pomo">
+    <div class="ring-wrap">
+      <svg width="248" height="248" viewBox="0 0 248 248">
+        <circle class="ring-bg" cx="124" cy="124" r="${R}"/>
+        <circle class="ring-fg ${isBrk?'brk':''}" cx="124" cy="124" r="${R}" stroke-dasharray="${C}" stroke-dashoffset="${off}"/>
+      </svg>
+      <div class="ring-mid">
+        <div class="mode ${isBrk?'brk':''}">${isBrk?'BREAK':'FOCUS'}</div>
+        <div class="time">${pad(m)}:${pad(s)}</div>
+        <div class="sess">完了 ${timer.sessions} セッション</div>
+      </div>
+    </div>
+    <div class="pomo-target">${plan?`<b>${esc(plan.title)}</b> に集中中`:'教科を選んで集中しよう'}</div>
+    <div class="pomo-ctrl">
+      <button class="cbtn" onclick="resetTimer()" title="リセット">${I.reset}</button>
+      <button class="cbtn main ${isBrk?'brk':''}" onclick="toggleTimer()">${timer.running?I.pause:I.play}</button>
+      <button class="cbtn" onclick="skipTimer()" title="スキップ">${I.skip}</button>
+    </div>
+  </div>
+  <div class="card">
+    <div class="field" style="margin-bottom:0"><label>集中する計画</label>
+      <select id="pomo-plan" onchange="timer.planId=this.value||null;renderFocus()">${planOpts}</select></div>
+  </div>
+  <div class="card">
+    <div class="row2">
+      <div class="field" style="margin-bottom:0"><label>集中(分)</label><input id="set-focus" type="number" inputmode="numeric" value="${DB.settings.focus}" onchange="setDur()"></div>
+      <div class="field" style="margin-bottom:0"><label>休憩(分)</label><input id="set-brk" type="number" inputmode="numeric" value="${DB.settings.brk}" onchange="setDur()"></div>
+    </div>
+  </div>`;
+}
+window.setDur=()=>{
+  const f=Math.max(1,+document.getElementById("set-focus").value||25);
+  const b=Math.max(1,+document.getElementById("set-brk").value||5);
+  DB.settings.focus=f;DB.settings.brk=b;save();
+  if(!timer.running){timer.total=(timer.mode==="focus"?f:b)*60;timer.sec=timer.total;renderFocus();}
+};
+window.toggleTimer=()=>{
+  if(timer.running){clearInterval(timer.intv);timer.running=false;}
+  else{
+    // 集中モード開始時は教科必須（休憩なら不要）
+    if(timer.mode==="focus"&&!timer.planId){
+      toast("教科が選択されていません");
+      const sel=document.getElementById("pomo-plan");
+      if(sel){sel.style.borderColor="var(--coral)";setTimeout(()=>sel.style.borderColor="",1800);sel.focus();}
+      return;
+    }
+    timer.running=true;
+    timer.intv=setInterval(()=>{
+      timer.sec--;if(timer.mode==="focus")timer.elapsed++;
+      if(timer.sec<=0){clearInterval(timer.intv);timer.running=false;sessionEnd();return;}
+      updateTimerUI();
+    },1000);
+  }
+  renderFocus();
+};
+function updateTimerUI(){
+  const R=110,C=2*Math.PI*R,off=C*(1-timer.sec/timer.total);
+  const m=Math.floor(timer.sec/60),s=timer.sec%60;
+  const fg=document.querySelector(".ring-fg");if(fg)fg.style.strokeDashoffset=off;
+  const t=document.querySelector(".ring-mid .time");if(t)t.textContent=pad(m)+":"+pad(s);
+}
+window.resetTimer=()=>{clearInterval(timer.intv);timer.running=false;timer.total=(timer.mode==="focus"?DB.settings.focus:DB.settings.brk)*60;timer.sec=timer.total;timer.elapsed=0;renderFocus();};
+window.skipTimer=()=>{clearInterval(timer.intv);timer.running=false;if(timer.mode==="focus")sessionEnd();else{toBreakOrFocus("focus");}};
+function toBreakOrFocus(mode){timer.mode=mode;timer.total=(mode==="focus"?DB.settings.focus:DB.settings.brk)*60;timer.sec=timer.total;timer.elapsed=0;renderFocus();}
+function sessionEnd(){
+  try{navigator.vibrate&&navigator.vibrate([120,60,120]);}catch(e){}
+  const min=Math.round(timer.elapsed/60)||DB.settings.focus;
+  recordForm(min);
+}
+function recordForm(min){
+  const plan=DB.plans.find(p=>p.id===timer.planId);
+  openSheet(`<h3>セッション記録</h3>
+    <div class="desc">${min}分の集中、おつかれさま。質を記録しておこう。</div>
+    <div class="field"><label>集中度</label><div class="rate" id="r-conc">${[1,2,3,4,5].map(n=>`<button data-v="${n}">${n}</button>`).join("")}</div></div>
+    <div class="field"><label>難易度</label><div class="rate diff" id="r-diff">${[1,2,3,4,5].map(n=>`<button data-v="${n}">${n}</button>`).join("")}</div></div>
+    ${plan?`<div class="field"><label>進んだ量（${esc(plan.unit)}）</label><input id="r-units" type="number" inputmode="numeric" value="0"></div>`:''}
+    <div class="field"><label>ふりかえり</label><textarea id="r-ref" placeholder="例: 微分の応用が難しかった"></textarea></div>
+    <button class="btn grn" style="background:var(--green);box-shadow:none;color:#06210f" onclick="saveRecord(${min})">記録して休憩へ</button>`);
+  let conc=4,diff=3;
+  document.querySelectorAll("#r-conc button").forEach(b=>b.onclick=()=>{conc=+b.dataset.v;mark("#r-conc",b);});
+  document.querySelectorAll("#r-diff button").forEach(b=>b.onclick=()=>{diff=+b.dataset.v;mark("#r-diff",b);});
+  function mark(sel,btn){document.querySelectorAll(sel+" button").forEach(x=>x.classList.remove("on"));btn.classList.add("on");}
+  document.querySelector('#r-conc button[data-v="4"]').classList.add("on");
+  document.querySelector('#r-diff button[data-v="3"]').classList.add("on");
+  window.__rec={get conc(){return conc;},get diff(){return diff;}};
+}
+window.saveRecord=min=>{
+  const conc=window.__rec.conc,diff=window.__rec.diff;
+  const ref=document.getElementById("r-ref").value.trim();
+  const units=+(document.getElementById("r-units")?.value||0);
+  DB.records.push({id:uid(),planId:timer.planId,date:todayStr(),units,dur:min,conc,diff,ref,ts:new Date().toISOString()});
+  if(timer.planId&&units>0){const p=DB.plans.find(x=>x.id===timer.planId);if(p)p.completed=Math.min(p.total,p.completed+units);}
+  timer.sessions++;save();closeSheet();toast("記録しました ✓");
+  toBreakOrFocus("break");
+};
+
+/* ---- ANALYTICS ---- */
+function renderStats(){
+  const el=document.getElementById("s-stats");
+  const recs=DB.records;
+  const totalMin=recs.reduce((s,r)=>s+(r.dur||0),0);
+  const sessions=recs.filter(r=>r.dur>0).length;
+  const concRecs=recs.filter(r=>r.conc>0);
+  const avgConc=concRecs.length?(concRecs.reduce((s,r)=>s+r.conc,0)/concRecs.length).toFixed(1):"–";
+  const totalUnits=recs.reduce((s,r)=>s+(r.units||0),0);
+
+  // last 14 days
+  const days=[];for(let i=13;i>=0;i--){const d=addDays(today(),-i);days.push({d,key:dstr(d),min:0});}
+  recs.forEach(r=>{const day=days.find(x=>x.key===r.date);if(day)day.min+=(r.dur||0);});
+  const max=Math.max(60,...days.map(d=>d.min));
+
+  // subject distribution
+  const dist={};
+  recs.forEach(r=>{const p=DB.plans.find(x=>x.id===r.planId);const key=p?p.subject:"未分類";const col=p?p.color:"#616a7e";if(!dist[key])dist[key]={min:0,col};dist[key].min+=(r.dur||0);});
+  const distArr=Object.entries(dist).filter(([,v])=>v.min>0).sort((a,b)=>b[1].min-a[1].min);
+  const distMax=Math.max(1,...distArr.map(([,v])=>v.min));
+
+  let h=`<div class="shead"><span class="num">04</span><h2>学習分析</h2><span class="en">Stats</span></div>
+  <div class="bigstat">
+    <div class="s"><div class="v acc" style="color:var(--accent)">${fmtMin(totalMin)}</div><div class="l">総集中時間</div></div>
+    <div class="s"><div class="v" style="color:var(--green)">${streak()}<small>日</small></div><div class="l">連続記録</div></div>
+    <div class="s"><div class="v" style="color:var(--teal)">${sessions}</div><div class="l">セッション数</div></div>
+    <div class="s"><div class="v" style="color:var(--violet)">${avgConc}</div><div class="l">平均集中度</div></div>
+  </div>`;
+
+  h+=`<div class="card" style="margin-top:14px">
+    <div style="font-size:13px;color:var(--dim);margin-bottom:2px;font-weight:700">直近14日の集中時間 <span style="color:var(--faint);font-weight:400">(分)</span></div>
+    <div class="chart">${days.map(d=>{
+      const ht=Math.round(d.min/max*100);const isT=d.key===todayStr();
+      return `<div class="bar" title="${d.min}分"><div class="fill ${isT?'today':''}" style="height:${d.min?Math.max(ht,4):0}%"></div><div class="lab">${d.d.getDate()}</div></div>`;
+    }).join("")}</div>
+  </div>`;
+
+  if(distArr.length){
+    h+=`<div class="card"><div style="font-size:13px;color:var(--dim);margin-bottom:8px;font-weight:700">教科別の集中時間</div>`;
+    distArr.forEach(([k,v])=>{
+      h+=`<div class="distrow"><div class="dl"><span class="nm"><span class="dot" style="background:${v.col};display:inline-block;margin-right:6px;vertical-align:middle"></span>${esc(k)}</span><span class="vv">${v.min}分</span></div><div class="db"><i style="width:${Math.round(v.min/distMax*100)}%;background:${v.col}"></i></div></div>`;
+    });
+    h+=`</div>`;
+  }
+
+  h+=renderSyncCard();
+
+  h+=`<div class="card"><div style="font-size:13px;color:var(--dim);margin-bottom:4px;font-weight:700">累計</div>
+    <div class="plan meta" style="font-family:var(--mono);font-size:13px"><span>こなした量</span><span style="color:var(--accent)">${totalUnits} 単位</span></div>
+    <div class="plan meta" style="font-family:var(--mono);font-size:13px"><span>記録した日数</span><span style="color:var(--text)">${new Set(recs.map(r=>r.date)).size} 日</span></div>
+    <div class="plan meta" style="font-family:var(--mono);font-size:13px"><span>進行中の計画</span><span style="color:var(--text)">${DB.plans.length} 件</span></div>
+  </div>`;
+
+  if(!recs.length){
+    h+=`<div class="note">まだ記録がありません。<br>ポモドーロで集中すると、ここにデータが溜まっていきます。</div>`;
+  }
+
+  h+=`<div class="note">
+    データはこの端末の localStorage に保存されます。${Store.persistent?'':'<br><b style="color:var(--coral)">⚠ プレビュー表示中は保存されません。ダウンロードして開いてください。</b>'}
+    <div class="linkrow"><a href="#" onclick="exportData();return false">エクスポート</a> · <a href="#" onclick="resetAll();return false">全消去</a></div>
+  </div>`;
+  el.innerHTML=h;
+}
+window.exportData=()=>{
+  const blob=new Blob([JSON.stringify({plans:DB.plans,records:DB.records},null,2)],{type:"application/json"});
+  const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="studynext-backup.json";a.click();toast("バックアップを保存");
+};
+
+const G_ICON='<svg viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>';
+const CLOUD_ICON='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.5 19a4.5 4.5 0 1 0-.96-8.9 6 6 0 0 0-11.5 1.7A4 4 0 0 0 6 19h11.5z"/></svg>';
+
+function renderSyncCard(){
+  // file:// 実行中
+  if(location.protocol==="file:"){
+    return `<div class="card"><div class="sync-head"><div class="ic">${CLOUD_ICON}</div><div><div class="ttl">クラウド同期</div><div class="st">UNAVAILABLE</div></div></div>
+    <div class="setup-warn">ローカルファイル(<code>file://</code>)実行中はGoogle認証が動作しません。クラウド同期を使うにはGitHub PagesなどにホスティングしてHTTPSで開いてください。</div></div>`;
+  }
+  // CLIENT_ID未設定
+  if(!Sync.getClientId()){
+    return `<div class="card"><div class="sync-head"><div class="ic">${CLOUD_ICON}</div><div><div class="ttl">クラウド同期</div><div class="st">SETUP REQUIRED</div></div></div>
+    <div class="sync-info" style="margin-bottom:12px">Google Cloud Console で作成した <b>OAuthクライアントID</b> を入力してください。手順は配布チャットを参照。</div>
+    <div class="field" style="margin-bottom:10px"><input id="ci-input" placeholder="xxxxx.apps.googleusercontent.com" style="font-family:var(--mono);font-size:12px"></div>
+    <button class="btn" onclick="Sync.setClientId(document.getElementById('ci-input').value)">保存する</button></div>`;
+  }
+  // 未ログイン
+  if(!Sync.isSignedIn()){
+    return `<div class="card"><div class="sync-head"><div class="ic">${CLOUD_ICON}</div><div><div class="ttl">クラウド同期</div><div class="st">NOT SIGNED IN</div></div></div>
+    <div class="sync-info" style="margin-bottom:13px">Googleアカウントでログインすると、データが <b>あなたのGoogle Drive</b> の専用領域に保存され、複数端末で自動同期されます。</div>
+    <button class="gbtn" onclick="Sync.signIn()">${G_ICON}Googleでログイン</button>
+    <button class="tiny-del" onclick="if(confirm('クライアントIDを削除しますか？')){Store.set('sn_client_id','');location.reload();}">クライアントIDを変更</button></div>`;
+  }
+  // ログイン済み
+  const last=Sync.lastSync?`${Math.floor((Date.now()-Sync.lastSync)/60000)}分前`:"—";
+  return `<div class="card"><div class="sync-head"><div class="ic" style="color:var(--green)">${CLOUD_ICON}</div><div><div class="ttl">クラウド同期</div><div class="st" style="color:var(--green)">SIGNED IN</div></div></div>
+  <div class="sync-info">アカウント: <b>${esc(Sync._email||"(不明)")}</b><br>最終同期: <b>${last}</b></div>
+  <div class="sync-actions">
+    <button class="primary" onclick="Sync.manualSync()">今すぐ同期</button>
+    <button onclick="Sync.signOut()">ログアウト</button>
+  </div></div>`;
+}
+window.resetAll=()=>{openSheet(`<h3>全データを消去</h3><div class="desc">計画と学習記録がすべて削除されます。この操作は取り消せません。</div>
+  <button class="btn" style="background:var(--coral);color:#2a1006;box-shadow:none" onclick="doReset()">削除する</button>
+  <button class="tiny-del" onclick="closeSheet()">キャンセル</button>`);};
+window.doReset=()=>{DB.plans=[];DB.records=[];save();closeSheet();toast("消去しました");render();};
+
+/* ---- Demo seed ---- */
+window.seedDemo=()=>{
+  DB.plans=[
+    {id:uid(),title:"チャート式 数学IIB",subject:"数学",unit:"問",total:300,completed:84,deadline:dstr(addDays(today(),45)),days:[1,2,3,4,5,6],color:"#f4b740"},
+    {id:uid(),title:"LEAP 英単語(改訂)",subject:"英語",unit:"語",total:2300,completed:910,deadline:dstr(addDays(today(),90)),days:[0,1,2,3,4,5,6],color:"#46c9d6"},
+    {id:uid(),title:"鎌田の理論化学",subject:"化学",unit:"章",total:18,completed:5,deadline:dstr(addDays(today(),30)),days:[2,4,6],color:"#5bd08a"},
+  ];
+  const p=DB.plans;
+  DB.records=[];
+  for(let i=13;i>=0;i--){if(Math.random()<.78){const d=dstr(addDays(today(),-i));const n=1+Math.floor(Math.random()*3);for(let j=0;j<n;j++){const pl=p[Math.floor(Math.random()*p.length)];DB.records.push({id:uid(),planId:pl.id,date:d,units:2+Math.floor(Math.random()*6),dur:25,conc:3+Math.floor(Math.random()*3),diff:2+Math.floor(Math.random()*3),ref:"",ts:d});}}}
+  save();toast("サンプルを読み込みました");render();
+};
+
+/* ---- util ---- */
+function esc(s){return String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));}
+
+/* ============ Cloud Sync (Google Drive appDataFolder) ============ */
+const DRIVE_FILE="studynext.json";
+const Sync={
+  token:null,fileId:null,lastSync:null,tokenClient:null,ready:false,
+  _saveT:null,_busy:false,_silent:false,_pendingCloud:null,_email:null,
+  getClientId(){return (Store.get("sn_client_id","")||"").trim();},
+  isConfigured(){return !!this.getClientId()&&location.protocol!=="file:";},
+  isSignedIn(){return !!this.token;},
+  setClientId(id){
+    Store.set("sn_client_id",id.trim());
+    toast("クライアントIDを保存しました");
+    setTimeout(()=>location.reload(),800);
+  },
+  init(){
+    if(!this.isConfigured())return;
+    const cid=this.getClientId();
+    const wait=()=>{
+      if(typeof google==="undefined"||!google.accounts||!google.accounts.oauth2){
+        setTimeout(wait,300);return;
+      }
+      try{
+        this.tokenClient=google.accounts.oauth2.initTokenClient({
+          client_id:cid,
+          scope:"https://www.googleapis.com/auth/drive.appdata",
+          callback:r=>this._onToken(r)
+        });
+        this.ready=true;
+        // 前回ログイン済みなら無音で再認証を試みる
+        if(Store.get("sn_signed_in")===true){
+          this._silent=true;
+          try{this.tokenClient.requestAccessToken({prompt:"none"});}catch(e){this._silent=false;}
+        }
+      }catch(e){console.warn("GIS init failed",e);}
+    };
+    wait();
+  },
+  signIn(){
+    if(!this.ready){toast("初期化中…少し待って再度押してください");return;}
+    this._silent=false;
+    this.tokenClient.requestAccessToken({prompt:"consent"});
+  },
+  signOut(){
+    this.token=null;this.fileId=null;this.lastSync=null;this._email=null;
+    Store.set("sn_signed_in",false);
+    toast("ログアウトしました");
+    updateTopSync();
+    if(current==="stats")renderStats();
+  },
+  async _onToken(resp){
+    const wasSilent=this._silent;this._silent=false;
+    if(resp.error||!resp.access_token){
+      if(!wasSilent)toast("認証失敗: "+(resp.error||"unknown"));
+      if(!wasSilent)Store.set("sn_signed_in",false);
+      return;
+    }
+    this.token=resp.access_token;
+    Store.set("sn_signed_in",true);
+    try{
+      await this._fetchEmail();
+      await this._findFile();
+      await this._initialSync();
+    }catch(e){
+      toast("同期エラー: "+e.message);
+    }
+    updateTopSync();
+    if(current==="stats")renderStats();
+  },
+  async _fetchEmail(){
+    try{
+      const r=await fetch("https://www.googleapis.com/oauth2/v3/userinfo",{
+        headers:{Authorization:"Bearer "+this.token}
+      });
+      if(r.ok){const d=await r.json();this._email=d.email||null;}
+    }catch(e){}
+  },
+  async _findFile(){
+    const q=encodeURIComponent("name='"+DRIVE_FILE+"'");
+    const r=await fetch("https://www.googleapis.com/drive/v3/files?spaces=appDataFolder&q="+q+"&fields=files(id,modifiedTime)",{
+      headers:{Authorization:"Bearer "+this.token}
+    });
+    if(!r.ok)throw new Error("HTTP "+r.status);
+    const d=await r.json();
+    if(d.files&&d.files[0]){this.fileId=d.files[0].id;}else{this.fileId=null;}
+  },
+  async _download(){
+    if(!this.fileId)return null;
+    const r=await fetch(`https://www.googleapis.com/drive/v3/files/${this.fileId}?alt=media`,{
+      headers:{Authorization:"Bearer "+this.token}
+    });
+    if(!r.ok)throw new Error("HTTP "+r.status);
+    return await r.json();
+  },
+  async _initialSync(){
+    const cloud=await this._download();
+    const hasCloud=cloud&&((cloud.records&&cloud.records.length)||(cloud.plans&&cloud.plans.length));
+    const hasLocal=DB.plans.length>0||DB.records.length>0;
+    if(hasCloud&&hasLocal){this._promptMerge(cloud);return;}
+    if(hasCloud){this._applyCloud(cloud);toast("クラウドからデータを読込");return;}
+    await this.upload();
+    toast("ローカルデータをクラウドに保存");
+  },
+  _applyCloud(cloud){
+    DB.plans=cloud.plans||[];
+    DB.records=cloud.records||[];
+    if(cloud.settings)DB.settings=cloud.settings;
+    save({skipSync:true});
+    render();
+  },
+  _promptMerge(cloud){
+    this._pendingCloud=cloud;
+    const cP=(cloud.plans||[]).length,cR=(cloud.records||[]).length;
+    const lP=DB.plans.length,lR=DB.records.length;
+    openSheet(`<h3>データを選択</h3>
+      <div class="desc">この端末とクラウドの両方にデータがあります。どちらを使いますか？(片方を選ぶともう片方は上書きされます)</div>
+      <div class="card"><b>📱 この端末</b><div style="color:var(--dim);font-size:13px;margin-top:3px;font-family:var(--mono)">計画 ${lP}件 · 記録 ${lR}件</div></div>
+      <button class="btn" style="margin-bottom:14px" onclick="Sync.useLocal()">この端末のデータを使う</button>
+      <div class="card"><b>☁️ クラウド</b><div style="color:var(--dim);font-size:13px;margin-top:3px;font-family:var(--mono)">計画 ${cP}件 · 記録 ${cR}件</div></div>
+      <button class="btn ghost" onclick="Sync.useCloud()">クラウドのデータを使う</button>`);
+  },
+  useLocal(){closeSheet();this.upload().then(()=>toast("クラウドを上書きしました"));},
+  useCloud(){
+    closeSheet();
+    if(!this._pendingCloud)return;
+    this._applyCloud(this._pendingCloud);
+    this._pendingCloud=null;
+    toast("クラウドのデータを反映");
+    updateTopSync();
+  },
+  async upload(){
+    if(!this.token||this._busy)return;
+    this._busy=true;
+    updateTopSync(true);
+    try{
+      const content=JSON.stringify({
+        plans:DB.plans,records:DB.records,settings:DB.settings,
+        updatedAt:new Date().toISOString()
+      });
+      let r;
+      if(this.fileId){
+        r=await fetch(`https://www.googleapis.com/upload/drive/v3/files/${this.fileId}?uploadType=media`,{
+          method:"PATCH",
+          headers:{Authorization:"Bearer "+this.token,"Content-Type":"application/json"},
+          body:content
+        });
+      }else{
+        const b="------studynext"+Date.now();
+        const meta={name:DRIVE_FILE,parents:["appDataFolder"]};
+        const body=`--${b}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(meta)}\r\n--${b}\r\nContent-Type: application/json\r\n\r\n${content}\r\n--${b}--`;
+        r=await fetch("https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart",{
+          method:"POST",
+          headers:{Authorization:"Bearer "+this.token,"Content-Type":"multipart/related; boundary="+b},
+          body
+        });
+      }
+      if(!r.ok){
+        if(r.status===401){
+          // token expired
+          this.token=null;updateTopSync();
+          toast("認証が切れました。再ログインしてください");
+          return;
+        }
+        throw new Error("HTTP "+r.status);
+      }
+      if(!this.fileId){const d=await r.json();this.fileId=d.id;}
+      this.lastSync=new Date();
+    }catch(e){
+      toast("同期失敗: "+e.message);
+    }finally{
+      this._busy=false;
+      updateTopSync();
+    }
+  },
+  schedule(){
+    if(!this.token)return;
+    clearTimeout(this._saveT);
+    this._saveT=setTimeout(()=>this.upload(),3000);
+  },
+  manualSync(){
+    if(!this.token){toast("ログインしてください");return;}
+    this.upload();
+  }
+};
+function updateTopSync(syncing){
+  const el=document.getElementById("syncbadge");if(!el)return;
+  if(syncing){el.textContent="同期中…";el.className="sync-badge syncing";return;}
+  if(!Sync.isConfigured()){
+    if(location.protocol==="file:"){el.textContent="ローカル実行";}
+    else{el.textContent="未設定";}
+    el.className="sync-badge dim";return;
+  }
+  if(!Sync.isSignedIn()){el.textContent="未ログイン";el.className="sync-badge dim";return;}
+  if(Sync.lastSync){
+    const m=Math.floor((Date.now()-Sync.lastSync)/60000);
+    el.textContent=m<1?"同期済み":m+"分前";
+  }else{el.textContent="ログイン中";}
+  el.className="sync-badge ok";
+}
+
+/* ---- init ---- */
+buildNav();render();Sync.init();updateTopSync();
+setInterval(updateTopSync,30000); // 同期バッジの「○分前」更新
+</script>
+</body>
+</html>
