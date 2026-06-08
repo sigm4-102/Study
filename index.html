@@ -42,13 +42,17 @@ input,textarea,select{font-family:inherit;font-size:16px}
   grid-template-columns:1fr;
   grid-template-rows:auto 1fr auto;
   grid-template-areas:"topbar" "main" "nav";
-  max-width:480px;margin:0 auto;height:100dvh;
+  max-width:480px;margin:0 auto;
+  height:100vh;        /* dvh非対応/解決失敗時のフォールバック */
+  height:100dvh;
+  max-height:100vh;max-height:100dvh;
+  overflow:hidden;     /* 中身が枠を押し広げてnavを画面外へ追い出すのを防ぐ */
   position:relative;background:var(--bg);
   box-shadow:0 0 80px -20px rgba(0,0,0,.9);
 }
-.topbar{grid-area:topbar}
-main{grid-area:main}
-nav{grid-area:nav}
+.topbar{grid-area:topbar;min-height:0}
+main{grid-area:main;min-height:0}
+nav{grid-area:nav;min-height:0;flex-shrink:0}
 
 @media(min-width:520px) and (max-width:899px){
   #app{border-left:1px solid var(--border-soft);border-right:1px solid var(--border-soft)}
@@ -245,6 +249,7 @@ nav button:active{transform:scale(.9)}
     border-top:none;border-right:1px solid var(--border-soft);
     background:var(--bg-2);
     gap:3px;
+    overflow-y:auto;
   }
   .nav-brand{
     display:flex;align-items:center;gap:10px;
@@ -339,6 +344,34 @@ nav button:active{transform:scale(.9)}
 .task .pace-tag{font-family:var(--mono);font-size:11px;font-weight:700;padding:1px 7px;border-radius:99px}
 .task .pace-tag.ahead{background:rgba(91,208,138,.12);color:var(--green)}
 .task .pace-tag.behind{background:rgba(255,138,107,.12);color:var(--coral)}
+
+/* Timeline (Study Plus風) */
+.tl-day{display:flex;align-items:baseline;gap:8px;margin:20px 2px 12px}
+.tl-day .d{font-family:var(--font-disp);font-size:17px;font-weight:800}
+.tl-day .wd{font-family:var(--mono);font-size:12px;color:var(--faint)}
+.tl-day .sum{font-family:var(--mono);font-size:11px;color:var(--dim);margin-left:auto}
+.tl-day .sum small{color:var(--faint)}
+.tl-item{display:flex;gap:13px}
+.tl-rail{flex:0 0 14px;display:flex;flex-direction:column;align-items:center}
+.tl-dot{width:13px;height:13px;border-radius:50%;border:2px solid var(--bg);box-shadow:0 0 0 2px var(--border-soft);margin-top:5px;flex:0 0 auto}
+.tl-line{flex:1;width:2px;background:var(--border-soft);margin:4px 0 0}
+.tl-body{flex:1;min-width:0;padding-bottom:14px}
+.tl-time{font-family:var(--mono);font-size:12px;color:var(--dim);margin:3px 0 5px}
+.tl-card{background:var(--surface);border:1px solid var(--border-soft);border-radius:14px;padding:12px 14px}
+.tl-head{display:flex;align-items:flex-start;gap:8px}
+.tl-ttl{flex:1;min-width:0;font-weight:700;font-size:15px;line-height:1.4}
+.tl-ttl .tl-sub{display:inline-block;font-weight:500;font-size:11px;color:var(--dim);background:var(--surface-2);border:1px solid var(--border-soft);padding:1px 8px;border-radius:99px;margin-left:7px;vertical-align:middle}
+.tl-del{flex:0 0 auto;width:26px;height:26px;border-radius:8px;color:var(--faint);font-size:12px;font-weight:700;display:grid;place-items:center;transition:.12s}
+.tl-del:hover{color:var(--coral);background:rgba(255,138,107,.1)}
+.tl-del:active{transform:scale(.9)}
+.tl-meta{display:flex;flex-wrap:wrap;gap:7px;margin-top:9px}
+.tl-dur,.tl-prog{font-family:var(--mono);font-size:12px;font-weight:700;padding:3px 10px;border-radius:99px}
+.tl-dur{background:var(--surface-2);color:var(--dim);border:1px solid var(--border-soft)}
+.tl-dur small{color:var(--faint);font-weight:400}
+.tl-prog{background:rgba(244,183,64,.12);color:var(--accent);border:1px solid var(--accent-dim)}
+.tl-rate{font-family:var(--mono);font-size:11px;color:var(--faint);margin-top:8px}
+.tl-rate b{color:var(--dim)}
+.tl-ref{font-size:13px;color:var(--text);line-height:1.6;margin-top:9px;padding-top:9px;border-top:1px solid var(--border-soft);white-space:pre-wrap;word-break:break-word}
 </style>
 </head>
 <body>
@@ -355,6 +388,8 @@ nav button:active{transform:scale(.9)}
     <section class="screen" id="s-plans"></section>
     <!-- FOCUS -->
     <section class="screen" id="s-focus"></section>
+    <!-- TIMELINE -->
+    <section class="screen" id="s-timeline"></section>
     <!-- ANALYTICS -->
     <section class="screen" id="s-stats"></section>
   </main>
@@ -408,7 +443,10 @@ const DB={
 function save(opts){
   Store.set("sn_plans",DB.plans);Store.set("sn_records",DB.records);
   Store.set("sn_settings",DB.settings);
-  if(!(opts&&opts.skipSync)&&window.Sync&&Sync.isSignedIn())Sync.schedule();
+  if(!(opts&&opts.skipSync)){
+    Store.set("sn_dirty",true); // この端末で変更が入った印(同期判定に使う)
+    if(window.Sync&&Sync.isSignedIn())Sync.schedule();
+  }
 }
 const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,7);
 
@@ -515,6 +553,7 @@ const I={
   plan:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/></svg>',
   focus:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="8"/><path d="M12 13V9M9 2h6"/></svg>',
   stats:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>',
+  timeline:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="2"/><circle cx="6" cy="18" r="2"/><path d="M6 8v8"/><path d="M12 6h8M12 12h6M12 18h8"/></svg>',
   play:'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 5v14l12-7z"/></svg>',
   pause:'<svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg>',
   reset:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg>',
@@ -523,8 +562,8 @@ const I={
 };
 
 /* ============ Navigation ============ */
-const TABS=[["home","ホーム"],["plans","計画"],["focus","集中"],["stats","分析"]];
-const ICON={home:I.home,plans:I.plan,focus:I.focus,stats:I.stats};
+const TABS=[["home","ホーム"],["plans","計画"],["focus","集中"],["timeline","記録"],["stats","分析"]];
+const ICON={home:I.home,plans:I.plan,focus:I.focus,timeline:I.timeline,stats:I.stats};
 let current="home";
 function buildNav(){
   document.getElementById("nav").innerHTML=
@@ -556,6 +595,7 @@ function render(){
   if(current==="home")renderHome();
   else if(current==="plans")renderPlans();
   else if(current==="focus")renderFocus();
+  else if(current==="timeline")renderTimeline();
   else if(current==="stats")renderStats();
 }
 
@@ -793,7 +833,15 @@ window.toggleTimer=()=>{
     timer.running=true;
     timer.intv=setInterval(()=>{
       timer.sec--;if(timer.mode==="focus")timer.elapsed++;
-      if(timer.sec<=0){clearInterval(timer.intv);timer.running=false;sessionEnd();return;}
+      if(timer.sec<=0){
+        clearInterval(timer.intv);timer.running=false;
+        if(timer.mode==="focus"){sessionEnd();}
+        else{ // 休憩終了 → 記録フォームは出さず集中モードへ戻す
+          try{navigator.vibrate&&navigator.vibrate(120);}catch(e){}
+          toBreakOrFocus("focus");toast("休憩おわり。集中に戻ろう");
+        }
+        return;
+      }
       updateTimerUI();
     },1000);
   }
@@ -840,6 +888,125 @@ window.saveRecord=min=>{
   toBreakOrFocus("break");
 };
 
+/* ---- TIMELINE ---- */
+// 記録のタイムスタンプ(ms)。ts(ISO)優先、無ければdateから。
+function tsMs(r){const t=Date.parse(r.ts);if(!isNaN(t))return t;const d=parseD(r.date);return d?d.getTime():0;}
+function hhmm(ms){const d=new Date(ms);return pad(d.getHours())+":"+pad(d.getMinutes());}
+function dayLabel(key){const d=parseD(key);return `${d.getMonth()+1}月${d.getDate()}日`;}
+
+function renderTimeline(){
+  const el=document.getElementById("s-timeline");
+  let h=`<div class="shead"><span class="num">04</span><h2>タイムライン</h2><span class="en">Timeline</span></div>`;
+  h+=`<button class="btn" style="margin-bottom:18px" onclick="logForm()">＋ 記録を追加</button>`;
+
+  const recs=[...DB.records].sort((a,b)=>tsMs(b)-tsMs(a)); // 新しい順
+  if(!recs.length){
+    h+=`<div class="card"><div class="empty"><div class="ico">🕓</div><p>まだ記録がありません。<br>ポモドーロで集中するか、「記録を追加」から手動で残せます。</p></div></div>`;
+    el.innerHTML=h;return;
+  }
+
+  // 日付ごとにグループ化
+  const groups=[];
+  recs.forEach(r=>{
+    let g=groups.find(x=>x.key===r.date);
+    if(!g){g={key:r.date,items:[],min:0,units:{}};groups.push(g);}
+    g.items.push(r);g.min+=(r.dur||0);
+  });
+
+  groups.forEach(g=>{
+    const wd=WD[parseD(g.key).getDay()];
+    const isToday=g.key===todayStr();
+    h+=`<div class="tl-day"><span class="d">${isToday?'今日':dayLabel(g.key)}</span><span class="wd">(${wd})</span><span class="sum">${g.min>0?fmtMin(g.min):'—'}</span></div>`;
+    g.items.forEach((r,i)=>{
+      const plan=DB.plans.find(p=>p.id===r.planId);
+      const color=plan?plan.color:"#616a7e";
+      const title=plan?plan.title:"フリー学習";
+      const subject=plan?plan.subject:"";
+      const unit=plan?plan.unit:"";
+      const end=tsMs(r),dur=r.dur||0;
+      const timeStr=dur>0?`${hhmm(end-dur*60000)}〜${hhmm(end)}`:hhmm(end);
+      const last=i===g.items.length-1;
+      let metaBits=[];
+      if(dur>0)metaBits.push(`<span class="tl-dur">${fmtMin(dur)}</span>`);
+      if(r.units>0)metaBits.push(`<span class="tl-prog">＋${r.units}${esc(unit)}</span>`);
+      let rate="";
+      if(r.conc>0||r.diff>0){
+        rate=`<div class="tl-rate">${r.conc>0?`集中 <b>${r.conc}</b>`:''}${(r.conc>0&&r.diff>0)?' · ':''}${r.diff>0?`難度 <b>${r.diff}</b>`:''}</div>`;
+      }
+      h+=`<div class="tl-item">
+        <div class="tl-rail"><span class="tl-dot" style="background:${color}"></span>${last?'':'<span class="tl-line"></span>'}</div>
+        <div class="tl-body">
+          <div class="tl-time">${timeStr}</div>
+          <div class="tl-card">
+            <div class="tl-head">
+              <div class="tl-ttl">${esc(title)}${subject?`<span class="tl-sub">${esc(subject)}</span>`:''}</div>
+              <button class="tl-del" onclick="confirmDelRecord('${r.id}')" aria-label="削除">✕</button>
+            </div>
+            ${metaBits.length?`<div class="tl-meta">${metaBits.join("")}</div>`:''}
+            ${rate}
+            ${r.ref?`<div class="tl-ref">${esc(r.ref)}</div>`:''}
+          </div>
+        </div>
+      </div>`;
+    });
+  });
+  el.innerHTML=h;
+}
+
+let __log={conc:4,diff:3};
+window.logForm=()=>{
+  const planOpts=`<option value="">教材を選択しない</option>`+DB.plans.map(p=>`<option value="${p.id}">${esc(p.title)}</option>`).join("");
+  const now=new Date();
+  openSheet(`<h3>記録を追加</h3>
+    <div class="desc">勉強した内容をタイムラインに残します。教材を選ぶと進捗にも反映されます。</div>
+    <div class="field"><label>教材</label><select id="l-plan">${planOpts}</select></div>
+    <div class="row2">
+      <div class="field"><label>日付</label><input id="l-date" type="date" value="${todayStr()}"></div>
+      <div class="field"><label>開始時刻</label><input id="l-time" type="time" value="${pad(now.getHours())}:${pad(now.getMinutes())}"></div>
+    </div>
+    <div class="row2">
+      <div class="field"><label>勉強時間(分)</label><input id="l-dur" type="number" inputmode="numeric" value="25"></div>
+      <div class="field"><label>進んだ量</label><input id="l-units" type="number" inputmode="numeric" value="0"></div>
+    </div>
+    <div class="field"><label>集中度</label><div class="rate" id="l-conc">${[1,2,3,4,5].map(n=>`<button data-v="${n}">${n}</button>`).join("")}</div></div>
+    <div class="field"><label>難易度</label><div class="rate diff" id="l-diff">${[1,2,3,4,5].map(n=>`<button data-v="${n}">${n}</button>`).join("")}</div></div>
+    <div class="field"><label>振り返り</label><textarea id="l-ref" placeholder="例: 二次関数の場合分けを復習。詰まった所をAnki化"></textarea></div>
+    <button class="btn" onclick="saveLog()">記録する</button>`);
+  __log={conc:4,diff:3};
+  document.querySelectorAll("#l-conc button").forEach(b=>b.onclick=()=>{__log.conc=+b.dataset.v;markRate("#l-conc",b);});
+  document.querySelectorAll("#l-diff button").forEach(b=>b.onclick=()=>{__log.diff=+b.dataset.v;markRate("#l-diff",b);});
+  document.querySelector('#l-conc button[data-v="4"]').classList.add("on");
+  document.querySelector('#l-diff button[data-v="3"]').classList.add("on");
+};
+function markRate(sel,btn){document.querySelectorAll(sel+" button").forEach(x=>x.classList.remove("on"));btn.classList.add("on");}
+window.saveLog=()=>{
+  const g=i=>document.getElementById(i);
+  const planId=g("l-plan").value||null;
+  const date=g("l-date").value||todayStr();
+  const time=g("l-time").value||"00:00";
+  const dur=Math.max(0,+g("l-dur").value||0);
+  const units=Math.max(0,+g("l-units").value||0);
+  const ref=g("l-ref").value.trim();
+  const [hh,mm]=time.split(":").map(Number);
+  const start=parseD(date);start.setHours(hh||0,mm||0,0,0);
+  const end=new Date(start.getTime()+dur*60000); // ts=終了時刻に統一(タイムラインで開始=ts-durで復元)
+  DB.records.push({id:uid(),planId,date,units,dur,conc:__log.conc,diff:__log.diff,ref,ts:end.toISOString()});
+  if(planId&&units>0){const p=DB.plans.find(x=>x.id===planId);if(p)p.completed=Math.min(p.total,p.completed+units);}
+  save();closeSheet();toast("記録しました ✓");renderTimeline();
+};
+window.confirmDelRecord=id=>{
+  openSheet(`<h3>記録を削除</h3>
+    <div class="desc">この記録を削除します。教材を紐づけていた場合、その進捗(完了量)からも差し引かれます。</div>
+    <button class="btn" style="background:var(--coral);color:#2a1006;box-shadow:none" onclick="delRecord('${id}')">削除する</button>
+    <button class="tiny-del" onclick="closeSheet()">キャンセル</button>`);
+};
+window.delRecord=id=>{
+  const r=DB.records.find(x=>x.id===id);
+  if(r&&r.planId&&r.units>0){const p=DB.plans.find(x=>x.id===r.planId);if(p)p.completed=Math.max(0,p.completed-r.units);}
+  DB.records=DB.records.filter(x=>x.id!==id);
+  save();closeSheet();toast("削除しました");renderTimeline();
+};
+
 /* ---- ANALYTICS ---- */
 function renderStats(){
   const el=document.getElementById("s-stats");
@@ -861,7 +1028,7 @@ function renderStats(){
   const distArr=Object.entries(dist).filter(([,v])=>v.min>0).sort((a,b)=>b[1].min-a[1].min);
   const distMax=Math.max(1,...distArr.map(([,v])=>v.min));
 
-  let h=`<div class="shead"><span class="num">04</span><h2>学習分析</h2><span class="en">Stats</span></div>
+  let h=`<div class="shead"><span class="num">05</span><h2>学習分析</h2><span class="en">Stats</span></div>
   <div class="bigstat">
     <div class="s"><div class="v acc" style="color:var(--accent)">${fmtMin(totalMin)}</div><div class="l">総集中時間</div></div>
     <div class="s"><div class="v" style="color:var(--green)">${streak()}<small>日</small></div><div class="l">連続記録</div></div>
@@ -1026,10 +1193,35 @@ const Sync={
     const cloud=await this._download();
     const hasCloud=cloud&&((cloud.records&&cloud.records.length)||(cloud.plans&&cloud.plans.length));
     const hasLocal=DB.plans.length>0||DB.records.length>0;
-    if(hasCloud&&hasLocal){this._promptMerge(cloud);return;}
-    if(hasCloud){this._applyCloud(cloud);toast("クラウドからデータを読込");return;}
-    await this.upload();
-    toast("ローカルデータをクラウドに保存");
+    if(!hasCloud){
+      if(hasLocal){await this.upload();toast("ローカルデータをクラウドに保存");}
+      else{this.lastSync=new Date();updateTopSync();}
+      return;
+    }
+    if(!hasLocal){this._applyCloud(cloud);toast("クラウドからデータを読込");return;}
+    // 両方にデータあり ―― 競合かどうかを判定する
+    // (1) 中身が同一なら同期済み扱い(プロンプト不要)
+    if(this._sameData(cloud,DB)){
+      Store.set("sn_synctag",cloud.updatedAt||null);Store.set("sn_dirty",false);
+      this.lastSync=new Date();updateTopSync();return;
+    }
+    const tag=Store.get("sn_synctag",null);
+    const dirty=Store.get("sn_dirty",true); // 不明なら安全側(変更あり扱い)
+    const inSync=tag&&cloud.updatedAt&&tag===cloud.updatedAt; // 前回同期後クラウドは変わってない
+    if(inSync){
+      // クラウドは前回のまま → こちらの変更を反映するだけ
+      if(dirty)await this.upload();
+      else{this.lastSync=new Date();updateTopSync();}
+      return;
+    }
+    // クラウドが別端末で更新されている
+    if(!dirty){this._applyCloud(cloud);toast("クラウドの更新を反映");return;}
+    // 双方が変更されている → 本当の競合。ユーザーに選んでもらう
+    this._promptMerge(cloud);
+  },
+  _sameData(a,b){
+    try{return JSON.stringify({p:a.plans||[],r:a.records||[]})===JSON.stringify({p:b.plans||[],r:b.records||[]});}
+    catch(e){return false;}
   },
   _applyCloud(cloud){
     DB.plans=cloud.plans||[];
@@ -1037,6 +1229,8 @@ const Sync={
     if(cloud.settings)DB.settings=cloud.settings;
     migratePlans();
     save({skipSync:true});
+    Store.set("sn_synctag",cloud.updatedAt||null);Store.set("sn_dirty",false);
+    this.lastSync=new Date();
     render();
   },
   _promptMerge(cloud){
@@ -1063,12 +1257,14 @@ const Sync={
     if(!this.user||this._busy)return;
     this._busy=true;
     updateTopSync(true);
+    const stamp=new Date().toISOString();
     try{
       await this._docRef().set({
         plans:DB.plans,records:DB.records,settings:DB.settings,
-        updatedAt:new Date().toISOString()
+        updatedAt:stamp
       });
       this.lastSync=new Date();
+      Store.set("sn_synctag",stamp);Store.set("sn_dirty",false);
     }catch(e){
       toast("同期失敗: "+(e.message||e));
     }finally{
@@ -1103,7 +1299,7 @@ function updateTopSync(syncing){
 }
 
 /* ---- init ---- */
-migratePlans();
+if(migratePlans())save({skipSync:true});
 buildNav();render();Sync.init();updateTopSync();
 setInterval(updateTopSync,30000); // 同期バッジの「○分前」更新
 </script>
