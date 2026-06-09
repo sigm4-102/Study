@@ -206,6 +206,25 @@ main{overflow-y:auto;overflow-x:hidden;padding:20px 18px 24px;min-height:0}
 .chart .bar .fill{width:100%;max-width:22px;border-radius:5px 5px 0 0;background:linear-gradient(180deg,var(--accent),var(--accent-dim));min-height:3px;transition:height .6s cubic-bezier(.2,.8,.2,1)}
 .chart .bar .fill.today{background:linear-gradient(180deg,var(--green),#3fae6e)}
 .chart .bar .lab{font-family:var(--mono);font-size:9px;color:var(--faint)}
+/* Chart crosshair tooltip (株価チャート風) */
+.chart-wrap{position:relative;touch-action:pan-y}
+.chart-cross{position:absolute;top:0;bottom:18px;width:1px;background:var(--accent);opacity:0;transition:opacity .1s;pointer-events:none;transform:translateX(-.5px)}
+.chart-cross.show{opacity:.45}
+.chart .bar{cursor:pointer}
+.chart .bar .fill{transition:height .6s cubic-bezier(.2,.8,.2,1),filter .1s}
+.chart .bar.active .fill{filter:brightness(1.35) saturate(1.1)}
+.chart-tip{position:absolute;top:-6px;left:0;background:var(--surface-2);border:1px solid var(--border);border-radius:12px;padding:9px 11px;box-shadow:var(--shadow);pointer-events:none;opacity:0;transition:opacity .12s;z-index:6;min-width:130px;white-space:nowrap}
+.chart-tip.show{opacity:1}
+.chart-tip .tt-d{font-family:var(--mono);font-size:10px;color:var(--faint);letter-spacing:.04em;margin-bottom:3px}
+.chart-tip .tt-total{font-family:var(--mono);font-size:18px;font-weight:700;color:var(--accent);margin-bottom:7px;line-height:1}
+.chart-tip .tt-total small{font-size:11px;color:var(--dim);font-weight:400}
+.chart-tip .tt-row{display:flex;align-items:center;gap:7px;font-size:12px;margin-top:4px}
+.chart-tip .tt-row .dot{width:7px;height:7px;border-radius:50%;flex:0 0 auto}
+.chart-tip .tt-row .nm{flex:1;color:var(--dim);max-width:120px;overflow:hidden;text-overflow:ellipsis}
+.chart-tip .tt-row .vv{font-family:var(--mono);color:var(--text);font-weight:500}
+.chart-tip .tt-row .vv small{color:var(--faint);font-weight:400}
+.chart-tip .tt-empty{font-size:12px;color:var(--faint)}
+.chart-hint{font-size:10px;color:var(--faint);text-align:center;margin-top:9px;font-family:var(--mono);letter-spacing:.02em}
 .distrow{margin-top:13px}
 .distrow .dl{display:flex;justify-content:space-between;font-size:13px;margin-bottom:5px}
 .distrow .dl .nm{font-weight:500}.distrow .dl .vv{font-family:var(--mono);color:var(--dim)}
@@ -894,6 +913,9 @@ function tsMs(r){const t=Date.parse(r.ts);if(!isNaN(t))return t;const d=parseD(r
 function hhmm(ms){const d=new Date(ms);return pad(d.getHours())+":"+pad(d.getMinutes());}
 function dayLabel(key){const d=parseD(key);return `${d.getMonth()+1}月${d.getDate()}日`;}
 
+let tlDays=14; // タイムラインの表示日数(初期=直近2週間)
+window.tlMore=()=>{tlDays+=14;renderTimeline();};
+
 function renderTimeline(){
   const el=document.getElementById("s-timeline");
   let h=`<div class="shead"><span class="num">04</span><h2>タイムライン</h2><span class="en">Timeline</span></div>`;
@@ -905,51 +927,63 @@ function renderTimeline(){
     el.innerHTML=h;return;
   }
 
-  // 日付ごとにグループ化
-  const groups=[];
-  recs.forEach(r=>{
-    let g=groups.find(x=>x.key===r.date);
-    if(!g){g={key:r.date,items:[],min:0,units:{}};groups.push(g);}
-    g.items.push(r);g.min+=(r.dur||0);
-  });
+  // 直近 tlDays 日ぶんだけ表示(初期=2週間)。それ以前はボタンで段階的に。
+  const cutoff=dstr(addDays(today(),-(tlDays-1)));
+  const visible=recs.filter(r=>r.date>=cutoff);
+  const olderCount=recs.length-visible.length;
 
-  groups.forEach(g=>{
-    const wd=WD[parseD(g.key).getDay()];
-    const isToday=g.key===todayStr();
-    h+=`<div class="tl-day"><span class="d">${isToday?'今日':dayLabel(g.key)}</span><span class="wd">(${wd})</span><span class="sum">${g.min>0?fmtMin(g.min):'—'}</span></div>`;
-    g.items.forEach((r,i)=>{
-      const plan=DB.plans.find(p=>p.id===r.planId);
-      const color=plan?plan.color:"#616a7e";
-      const title=plan?plan.title:"フリー学習";
-      const subject=plan?plan.subject:"";
-      const unit=plan?plan.unit:"";
-      const end=tsMs(r),dur=r.dur||0;
-      const timeStr=dur>0?`${hhmm(end-dur*60000)}〜${hhmm(end)}`:hhmm(end);
-      const last=i===g.items.length-1;
-      let metaBits=[];
-      if(dur>0)metaBits.push(`<span class="tl-dur">${fmtMin(dur)}</span>`);
-      if(r.units>0)metaBits.push(`<span class="tl-prog">＋${r.units}${esc(unit)}</span>`);
-      let rate="";
-      if(r.conc>0||r.diff>0){
-        rate=`<div class="tl-rate">${r.conc>0?`集中 <b>${r.conc}</b>`:''}${(r.conc>0&&r.diff>0)?' · ':''}${r.diff>0?`難度 <b>${r.diff}</b>`:''}</div>`;
-      }
-      h+=`<div class="tl-item">
-        <div class="tl-rail"><span class="tl-dot" style="background:${color}"></span>${last?'':'<span class="tl-line"></span>'}</div>
-        <div class="tl-body">
-          <div class="tl-time">${timeStr}</div>
-          <div class="tl-card">
-            <div class="tl-head">
-              <div class="tl-ttl">${esc(title)}${subject?`<span class="tl-sub">${esc(subject)}</span>`:''}</div>
-              <button class="tl-del" onclick="confirmDelRecord('${r.id}')" aria-label="削除">✕</button>
-            </div>
-            ${metaBits.length?`<div class="tl-meta">${metaBits.join("")}</div>`:''}
-            ${rate}
-            ${r.ref?`<div class="tl-ref">${esc(r.ref)}</div>`:''}
-          </div>
-        </div>
-      </div>`;
+  if(!visible.length){
+    h+=`<div class="card"><div class="empty" style="padding:28px 20px"><p>直近${tlDays}日に記録はありません。</p></div></div>`;
+  }else{
+    // 日付ごとにグループ化
+    const groups=[];
+    visible.forEach(r=>{
+      let g=groups.find(x=>x.key===r.date);
+      if(!g){g={key:r.date,items:[],min:0};groups.push(g);}
+      g.items.push(r);g.min+=(r.dur||0);
     });
-  });
+    groups.forEach(g=>{
+      const wd=WD[parseD(g.key).getDay()];
+      const isToday=g.key===todayStr();
+      h+=`<div class="tl-day"><span class="d">${isToday?'今日':dayLabel(g.key)}</span><span class="wd">(${wd})</span><span class="sum">${g.min>0?fmtMin(g.min):'—'}</span></div>`;
+      g.items.forEach((r,i)=>{
+        const plan=DB.plans.find(p=>p.id===r.planId);
+        const color=plan?plan.color:"#616a7e";
+        const title=plan?plan.title:"フリー学習";
+        const subject=plan?plan.subject:"";
+        const unit=plan?plan.unit:"";
+        const end=tsMs(r),dur=r.dur||0;
+        const timeStr=dur>0?`${hhmm(end-dur*60000)}〜${hhmm(end)}`:hhmm(end);
+        const last=i===g.items.length-1;
+        let metaBits=[];
+        if(dur>0)metaBits.push(`<span class="tl-dur">${fmtMin(dur)}</span>`);
+        if(r.units>0)metaBits.push(`<span class="tl-prog">＋${r.units}${esc(unit)}</span>`);
+        let rate="";
+        if(r.conc>0||r.diff>0){
+          rate=`<div class="tl-rate">${r.conc>0?`集中 <b>${r.conc}</b>`:''}${(r.conc>0&&r.diff>0)?' · ':''}${r.diff>0?`難度 <b>${r.diff}</b>`:''}</div>`;
+        }
+        h+=`<div class="tl-item">
+          <div class="tl-rail"><span class="tl-dot" style="background:${color}"></span>${last?'':'<span class="tl-line"></span>'}</div>
+          <div class="tl-body">
+            <div class="tl-time">${timeStr}</div>
+            <div class="tl-card">
+              <div class="tl-head">
+                <div class="tl-ttl">${esc(title)}${subject?`<span class="tl-sub">${esc(subject)}</span>`:''}</div>
+                <button class="tl-del" onclick="confirmDelRecord('${r.id}')" aria-label="削除">✕</button>
+              </div>
+              ${metaBits.length?`<div class="tl-meta">${metaBits.join("")}</div>`:''}
+              ${rate}
+              ${r.ref?`<div class="tl-ref">${esc(r.ref)}</div>`:''}
+            </div>
+          </div>
+        </div>`;
+      });
+    });
+  }
+
+  if(olderCount>0){
+    h+=`<button class="btn ghost sm" style="margin-top:8px" onclick="tlMore()">もっと前を表示（あと${olderCount}件）</button>`;
+  }
   el.innerHTML=h;
 }
 
@@ -1017,10 +1051,20 @@ function renderStats(){
   const avgConc=concRecs.length?(concRecs.reduce((s,r)=>s+r.conc,0)/concRecs.length).toFixed(1):"–";
   const totalUnits=recs.reduce((s,r)=>s+(r.units||0),0);
 
-  // last 14 days
-  const days=[];for(let i=13;i>=0;i--){const d=addDays(today(),-i);days.push({d,key:dstr(d),min:0});}
-  recs.forEach(r=>{const day=days.find(x=>x.key===r.date);if(day)day.min+=(r.dur||0);});
+  // last 14 days (各日の教科別内訳つき)
+  const days=[];for(let i=13;i>=0;i--){const d=addDays(today(),-i);days.push({d,key:dstr(d),min:0,sub:{}});}
+  recs.forEach(r=>{
+    const day=days.find(x=>x.key===r.date);if(!day)return;
+    const m=r.dur||0;day.min+=m;
+    if(m>0){const p=DB.plans.find(x=>x.id===r.planId);const nm=p?p.subject:"未分類";const col=p?p.color:"#616a7e";if(!day.sub[nm])day.sub[nm]={min:0,col};day.sub[nm].min+=m;}
+  });
   const max=Math.max(60,...days.map(d=>d.min));
+  // ツールチップ用データ(株価チャート風のクロスヘア表示に使う)
+  window.__chartDays=days.map(d=>({
+    min:d.min,
+    label:`${d.d.getMonth()+1}/${d.d.getDate()} (${WD[d.d.getDay()]})`,
+    parts:Object.entries(d.sub).map(([nm,v])=>({nm,min:v.min,col:v.col})).sort((a,b)=>b.min-a.min)
+  }));
 
   // subject distribution
   const dist={};
@@ -1038,10 +1082,15 @@ function renderStats(){
 
   h+=`<div class="card" style="margin-top:14px">
     <div style="font-size:13px;color:var(--dim);margin-bottom:2px;font-weight:700">直近14日の集中時間 <span style="color:var(--faint);font-weight:400">(分)</span></div>
-    <div class="chart">${days.map(d=>{
-      const ht=Math.round(d.min/max*100);const isT=d.key===todayStr();
-      return `<div class="bar" title="${d.min}分"><div class="fill ${isT?'today':''}" style="height:${d.min?Math.max(ht,4):0}%"></div><div class="lab">${d.d.getDate()}</div></div>`;
-    }).join("")}</div>
+    <div class="chart-wrap">
+      <div class="chart-cross"></div>
+      <div class="chart-tip"></div>
+      <div class="chart">${days.map((d,i)=>{
+        const ht=Math.round(d.min/max*100);const isT=d.key===todayStr();
+        return `<div class="bar" data-i="${i}"><div class="fill ${isT?'today':''}" style="height:${d.min?Math.max(ht,4):0}%"></div><div class="lab">${d.d.getDate()}</div></div>`;
+      }).join("")}</div>
+    </div>
+    <div class="chart-hint">バーにカーソルを合わせる/タップで内訳を表示</div>
   </div>`;
 
   if(distArr.length){
@@ -1069,7 +1118,48 @@ function renderStats(){
     <div class="linkrow"><a href="#" onclick="exportData();return false">エクスポート</a> · <a href="#" onclick="resetAll();return false">全消去</a></div>
   </div>`;
   el.innerHTML=h;
+  bindChart();
 }
+
+/* チャートのクロスヘア + 内訳ツールチップ(マウス/タッチ両対応) */
+function bindChart(){
+  const wrap=document.querySelector(".chart-wrap");if(!wrap)return;
+  const tip=wrap.querySelector(".chart-tip");
+  const cross=wrap.querySelector(".chart-cross");
+  const bars=[...wrap.querySelectorAll(".bar")];
+  const days=window.__chartDays||[];
+  function show(i){
+    const d=days[i];if(!d){hide();return;}
+    const rows=d.parts.length
+      ? d.parts.map(p=>`<div class="tt-row"><span class="dot" style="background:${p.col}"></span><span class="nm">${esc(p.nm)}</span><span class="vv">${p.min}<small>分</small></span></div>`).join("")
+      : `<div class="tt-empty">学習なし</div>`;
+    tip.innerHTML=`<div class="tt-d">${d.label}</div><div class="tt-total">${d.min>0?fmtMin(d.min):"0<small>分</small>"}</div>${rows}`;
+    const wr=wrap.getBoundingClientRect();
+    const br=bars[i].getBoundingClientRect();
+    const cx=br.left+br.width/2-wr.left;
+    cross.style.left=cx+"px";cross.classList.add("show");
+    tip.classList.add("show");
+    const tw=tip.offsetWidth;
+    let left=cx-tw/2;
+    left=Math.max(2,Math.min(left,wr.width-tw-2));
+    tip.style.left=left+"px";
+    bars.forEach((b,bi)=>b.classList.toggle("active",bi===i));
+  }
+  function hide(){tip.classList.remove("show");cross.classList.remove("show");bars.forEach(b=>b.classList.remove("active"));}
+  function pick(e){
+    const x=(e.touches&&e.touches[0])?e.touches[0].clientX:e.clientX;
+    let best=-1,bd=1e9;
+    bars.forEach((b,bi)=>{const r=b.getBoundingClientRect();const c=r.left+r.width/2;const dd=Math.abs(c-x);if(dd<bd){bd=dd;best=bi;}});
+    if(best>=0)show(best);
+  }
+  wrap.addEventListener("pointermove",pick);
+  wrap.addEventListener("pointerdown",pick);
+  wrap.addEventListener("pointerleave",hide);
+  wrap.addEventListener("pointercancel",hide);
+  // 外側タップで閉じる(タッチ端末)
+  document.addEventListener("pointerdown",e=>{if(!wrap.contains(e.target))hide();},{passive:true});
+}
+
 window.exportData=()=>{
   const blob=new Blob([JSON.stringify({plans:DB.plans,records:DB.records},null,2)],{type:"application/json"});
   const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="studynext-backup.json";a.click();toast("バックアップを保存");
