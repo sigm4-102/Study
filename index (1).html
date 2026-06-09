@@ -1,0 +1,1397 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Study</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Shippori+Mincho:wght@500;600;700;800&family=Zen+Kaku+Gothic+New:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<script defer src="https://www.gstatic.com/firebasejs/12.14.0/firebase-app-compat.js"></script>
+<script defer src="https://www.gstatic.com/firebasejs/12.14.0/firebase-auth-compat.js"></script>
+<script defer src="https://www.gstatic.com/firebasejs/12.14.0/firebase-firestore-compat.js"></script>
+<style>
+:root{
+  --bg:#0c0e13; --bg-2:#10131a; --surface:#171b24; --surface-2:#1e2330;
+  --border:#272d3c; --border-soft:#1f2533;
+  --text:#e9ecf3; --dim:#9aa3b8; --faint:#616a7e;
+  --accent:#f4b740; --accent-dim:#7a5e1e;
+  --green:#5bd08a; --teal:#46c9d6; --coral:#ff8a6b; --violet:#9d8cff;
+  --font-disp:"Shippori Mincho",serif;
+  --font:"Zen Kaku Gothic New",sans-serif;
+  --mono:"JetBrains Mono",monospace;
+  --shadow:0 10px 40px -12px rgba(0,0,0,.7);
+  --r:18px;
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{height:100%}
+body{
+  font-family:var(--font);background:var(--bg);color:var(--text);
+  line-height:1.6;overflow:hidden;
+  background-image:
+    radial-gradient(1200px 600px at 80% -10%, rgba(244,183,64,.06), transparent 60%),
+    radial-gradient(900px 500px at -10% 110%, rgba(70,201,214,.05), transparent 60%);
+}
+button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit}
+input,textarea,select{font-family:inherit;font-size:16px}
+::-webkit-scrollbar{width:0;height:0}
+
+/* App shell — responsive (phone frame ↔ desktop sidebar) */
+#app{
+  display:grid;
+  grid-template-columns:1fr;
+  grid-template-rows:auto 1fr auto;
+  grid-template-areas:"topbar" "main" "nav";
+  max-width:480px;margin:0 auto;
+  height:100vh;        /* dvh非対応/解決失敗時のフォールバック */
+  height:100dvh;
+  max-height:100vh;max-height:100dvh;
+  overflow:hidden;     /* 中身が枠を押し広げてnavを画面外へ追い出すのを防ぐ */
+  position:relative;background:var(--bg);
+  box-shadow:0 0 80px -20px rgba(0,0,0,.9);
+}
+.topbar{grid-area:topbar;min-height:0}
+main{grid-area:main;min-height:0}
+nav{grid-area:nav;min-height:0;flex-shrink:0}
+
+@media(min-width:520px) and (max-width:899px){
+  #app{border-left:1px solid var(--border-soft);border-right:1px solid var(--border-soft)}
+}
+
+/* Top bar */
+.topbar{
+  padding:max(14px,env(safe-area-inset-top)) 20px 12px;
+  display:flex;align-items:center;justify-content:space-between;
+  border-bottom:1px solid var(--border-soft);background:rgba(12,14,19,.85);backdrop-filter:blur(12px);
+  z-index:10;
+}
+.brand{display:flex;align-items:center;gap:9px;font-weight:900;letter-spacing:-.02em;font-size:18px}
+.brand .mark{
+  width:26px;height:26px;border-radius:8px;display:grid;place-items:center;
+  background:linear-gradient(135deg,var(--accent),#e89a2a);color:#1a1205;font-weight:900;font-size:15px;
+  box-shadow:0 4px 14px -4px rgba(244,183,64,.6);font-family:var(--font-disp);
+}
+.brand .next{color:var(--accent)}
+.topdate{font-family:var(--mono);font-size:12px;color:var(--dim);text-align:right;line-height:1.3}
+.topdate b{color:var(--text);font-weight:700}
+
+/* Scroll area */
+main{overflow-y:auto;overflow-x:hidden;padding:20px 18px 24px;min-height:0}
+.screen{display:none;animation:fade .35s ease}
+.screen.active{display:block}
+@keyframes fade{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+
+/* Section headers */
+.shead{display:flex;align-items:baseline;gap:10px;margin:4px 0 16px}
+.shead .num{font-family:var(--mono);font-size:11px;color:var(--accent);letter-spacing:.15em}
+.shead h2{font-family:var(--font-disp);font-size:23px;font-weight:800;letter-spacing:-.01em}
+.shead .en{font-family:var(--mono);font-size:10px;color:var(--faint);letter-spacing:.18em;text-transform:uppercase;margin-left:auto;align-self:center}
+
+/* Cards */
+.card{background:var(--surface);border:1px solid var(--border-soft);border-radius:var(--r);padding:18px}
+.card+.card{margin-top:13px}
+
+/* Hero (home) */
+.hero{
+  background:linear-gradient(160deg,var(--surface-2),var(--surface));
+  border:1px solid var(--border);border-radius:22px;padding:22px 20px;position:relative;overflow:hidden;
+}
+.hero::after{content:"";position:absolute;inset:0;background:radial-gradient(400px 200px at 100% 0,rgba(244,183,64,.12),transparent 70%);pointer-events:none}
+.hero .greet{font-size:13px;color:var(--dim)}
+.hero .big{font-family:var(--font-disp);font-size:27px;font-weight:800;line-height:1.3;margin:2px 0 4px}
+.hero .big em{color:var(--accent);font-style:normal}
+.statrow{display:flex;gap:10px;margin-top:18px}
+.stat{flex:1;background:rgba(255,255,255,.025);border:1px solid var(--border-soft);border-radius:14px;padding:12px}
+.stat .v{font-family:var(--mono);font-size:22px;font-weight:700}
+.stat .v small{font-size:12px;color:var(--dim);font-weight:400}
+.stat .l{font-size:11px;color:var(--faint);margin-top:2px}
+.stat .v.acc{color:var(--accent)} .stat .v.grn{color:var(--green)} .stat .v.tl{color:var(--teal)}
+
+/* Task list */
+.task{display:flex;align-items:center;gap:13px;padding:13px 0;border-bottom:1px solid var(--border-soft)}
+.task:last-child{border-bottom:none}
+.task .check{
+  width:24px;height:24px;border-radius:8px;border:2px solid var(--border);flex:0 0 auto;
+  display:grid;place-items:center;transition:.18s;cursor:pointer;
+}
+.task .check.done{background:var(--green);border-color:var(--green)}
+.task .check svg{opacity:0;transition:.18s}
+.task .check.done svg{opacity:1}
+.task .body{flex:1;min-width:0}
+.task .t{font-weight:700;font-size:15px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.task.complete .t{color:var(--faint);text-decoration:line-through}
+.task .sub{font-size:12px;color:var(--dim);display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.dot{width:7px;height:7px;border-radius:50%;flex:0 0 auto}
+.task .q{font-family:var(--mono);font-size:13px;color:var(--accent);flex:0 0 auto;font-weight:500}
+.qbtns{display:flex;gap:6px;flex:0 0 auto}
+.qbtns button{width:30px;height:30px;border-radius:9px;background:var(--surface-2);border:1px solid var(--border-soft);font-size:17px;font-weight:700;display:grid;place-items:center;color:var(--dim)}
+.qbtns button:active{transform:scale(.9)}
+
+/* Progress bar */
+.pbar{height:7px;border-radius:99px;background:var(--surface-2);overflow:hidden;margin-top:9px}
+.pbar i{display:block;height:100%;border-radius:99px;background:linear-gradient(90deg,var(--accent),#e89a2a);transition:width .5s cubic-bezier(.2,.8,.2,1)}
+.pbar i.grn{background:linear-gradient(90deg,var(--green),#3fae6e)}
+
+/* Plan card */
+.plan .top{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
+.plan .ttl{font-weight:700;font-size:16px}
+.plan .sub{font-size:12px;color:var(--dim);margin-top:1px}
+.badge{font-family:var(--mono);font-size:10px;padding:3px 8px;border-radius:99px;background:var(--surface-2);border:1px solid var(--border-soft);color:var(--dim);white-space:nowrap}
+.plan .meta{display:flex;justify-content:space-between;font-size:12px;color:var(--dim);margin-top:9px;font-family:var(--mono)}
+.plan .meta .due{color:var(--coral)}
+.plan .meta .due.safe{color:var(--green)}
+.plan .actions{display:flex;gap:8px;margin-top:13px}
+.plan .actions button{flex:1;padding:9px;border-radius:11px;font-size:13px;font-weight:700;background:var(--surface-2);border:1px solid var(--border-soft);color:var(--dim)}
+.plan .actions button.go{background:var(--accent);color:#1a1205;border-color:var(--accent)}
+.plan .actions button:active{transform:scale(.97)}
+
+/* Buttons */
+.btn{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:15px;border-radius:14px;font-weight:700;font-size:15px;background:var(--accent);color:#1a1205;box-shadow:0 6px 20px -8px rgba(244,183,64,.7);transition:.15s}
+.btn:active{transform:scale(.98)}
+.btn.ghost{background:var(--surface);color:var(--text);border:1px solid var(--border);box-shadow:none}
+.btn.sm{padding:11px;font-size:14px}
+
+/* Empty state */
+.empty{text-align:center;padding:38px 20px;color:var(--faint)}
+.empty .ico{font-size:40px;margin-bottom:10px;opacity:.8}
+.empty p{font-size:14px;margin-bottom:18px;color:var(--dim)}
+
+/* Pomodoro */
+.pomo{text-align:center;padding:8px 0}
+.ring-wrap{position:relative;width:248px;height:248px;margin:14px auto 6px}
+.ring-wrap svg{transform:rotate(-90deg)}
+.ring-bg{fill:none;stroke:var(--surface-2);stroke-width:10}
+.ring-fg{fill:none;stroke:var(--accent);stroke-width:10;stroke-linecap:round;transition:stroke-dashoffset 1s linear,stroke .4s}
+.ring-fg.brk{stroke:var(--teal)}
+.ring-mid{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
+.ring-mid .mode{font-family:var(--mono);font-size:12px;letter-spacing:.2em;color:var(--accent);text-transform:uppercase}
+.ring-mid .mode.brk{color:var(--teal)}
+.ring-mid .time{font-family:var(--mono);font-size:54px;font-weight:700;letter-spacing:-.02em;line-height:1}
+.ring-mid .sess{font-size:12px;color:var(--faint);margin-top:6px}
+.pomo-target{font-size:13px;color:var(--dim);margin:6px 0 18px}
+.pomo-target b{color:var(--text)}
+.pomo-ctrl{display:flex;gap:10px;justify-content:center}
+.cbtn{width:60px;height:60px;border-radius:50%;display:grid;place-items:center;background:var(--surface);border:1px solid var(--border)}
+.cbtn.main{width:74px;height:74px;background:var(--accent);border-color:var(--accent);box-shadow:0 8px 24px -8px rgba(244,183,64,.7)}
+.cbtn.main.brk{background:var(--teal);box-shadow:0 8px 24px -8px rgba(70,201,214,.6)}
+.cbtn:active{transform:scale(.93)}
+.cbtn svg{width:26px;height:26px}
+.cbtn.main svg{width:30px;height:30px;color:#1a1205}
+
+/* Segmented / rating */
+.field{margin-bottom:15px}
+.field label{display:block;font-size:13px;color:var(--dim);margin-bottom:7px;font-weight:500}
+.field input,.field textarea,.field select{
+  width:100%;padding:13px;border-radius:12px;background:var(--bg-2);border:1px solid var(--border);color:var(--text);
+}
+.field input:focus,.field textarea:focus,.field select:focus{outline:none;border-color:var(--accent)}
+.field textarea{resize:vertical;min-height:64px;line-height:1.5}
+.row2{display:flex;gap:10px}.row2>*{flex:1}
+.rate{display:flex;gap:7px}
+.rate button{flex:1;padding:11px 0;border-radius:11px;background:var(--bg-2);border:1px solid var(--border);font-weight:700;font-family:var(--mono);color:var(--dim);transition:.12s}
+.rate button.on{background:var(--accent);color:#1a1205;border-color:var(--accent)}
+.rate.diff button.on{background:var(--coral);color:#2a1006;border-color:var(--coral)}
+.daypick{display:flex;gap:6px}
+.daypick button{flex:1;padding:9px 0;border-radius:10px;background:var(--bg-2);border:1px solid var(--border);font-size:13px;color:var(--dim);font-weight:700}
+.daypick button.on{background:var(--surface-2);color:var(--accent);border-color:var(--accent-dim)}
+
+/* Analytics */
+.bigstat{display:grid;grid-template-columns:1fr 1fr;gap:11px}
+.bigstat .s{background:var(--surface);border:1px solid var(--border-soft);border-radius:15px;padding:15px}
+.bigstat .s .v{font-family:var(--mono);font-size:25px;font-weight:700}
+.bigstat .s .v small{font-size:13px;color:var(--dim);font-weight:400}
+.bigstat .s .l{font-size:12px;color:var(--faint);margin-top:1px}
+.chart{display:flex;align-items:flex-end;gap:5px;height:130px;margin-top:6px;padding-top:10px}
+.chart .bar{flex:1;display:flex;flex-direction:column;align-items:center;gap:5px;height:100%;justify-content:flex-end}
+.chart .bar .fill{width:100%;max-width:22px;border-radius:5px 5px 0 0;background:linear-gradient(180deg,var(--accent),var(--accent-dim));min-height:3px;transition:height .6s cubic-bezier(.2,.8,.2,1)}
+.chart .bar .fill.today{background:linear-gradient(180deg,var(--green),#3fae6e)}
+.chart .bar .lab{font-family:var(--mono);font-size:9px;color:var(--faint)}
+/* Chart crosshair tooltip (株価チャート風) */
+.chart-wrap{position:relative;touch-action:pan-y}
+.chart-cross{position:absolute;top:0;bottom:18px;width:1px;background:var(--accent);opacity:0;transition:opacity .1s;pointer-events:none;transform:translateX(-.5px)}
+.chart-cross.show{opacity:.45}
+.chart .bar{cursor:pointer}
+.chart .bar .fill{transition:height .6s cubic-bezier(.2,.8,.2,1),filter .1s}
+.chart .bar.active .fill{filter:brightness(1.35) saturate(1.1)}
+.chart-tip{position:absolute;top:-6px;left:0;background:var(--surface-2);border:1px solid var(--border);border-radius:12px;padding:9px 11px;box-shadow:var(--shadow);pointer-events:none;opacity:0;transition:opacity .12s;z-index:6;min-width:130px;white-space:nowrap}
+.chart-tip.show{opacity:1}
+.chart-tip .tt-d{font-family:var(--mono);font-size:10px;color:var(--faint);letter-spacing:.04em;margin-bottom:3px}
+.chart-tip .tt-total{font-family:var(--mono);font-size:18px;font-weight:700;color:var(--accent);margin-bottom:7px;line-height:1}
+.chart-tip .tt-total small{font-size:11px;color:var(--dim);font-weight:400}
+.chart-tip .tt-row{display:flex;align-items:center;gap:7px;font-size:12px;margin-top:4px}
+.chart-tip .tt-row .dot{width:7px;height:7px;border-radius:50%;flex:0 0 auto}
+.chart-tip .tt-row .nm{flex:1;color:var(--dim);max-width:120px;overflow:hidden;text-overflow:ellipsis}
+.chart-tip .tt-row .vv{font-family:var(--mono);color:var(--text);font-weight:500}
+.chart-tip .tt-row .vv small{color:var(--faint);font-weight:400}
+.chart-tip .tt-empty{font-size:12px;color:var(--faint)}
+.chart-hint{font-size:10px;color:var(--faint);text-align:center;margin-top:9px;font-family:var(--mono);letter-spacing:.02em}
+.distrow{margin-top:13px}
+.distrow .dl{display:flex;justify-content:space-between;font-size:13px;margin-bottom:5px}
+.distrow .dl .nm{font-weight:500}.distrow .dl .vv{font-family:var(--mono);color:var(--dim)}
+.distrow .db{height:9px;border-radius:99px;background:var(--surface-2);overflow:hidden}
+.distrow .db i{display:block;height:100%;border-radius:99px}
+.distrow+.distrow{margin-top:11px}
+
+/* Bottom nav (mobile) → Sidebar (desktop) */
+nav{
+  display:flex;
+  background:rgba(16,19,26,.92);backdrop-filter:blur(16px);border-top:1px solid var(--border);
+  padding:8px 6px max(8px,env(safe-area-inset-bottom));z-index:20;
+}
+nav button{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;padding:5px 0;color:var(--faint);font-size:10px;font-weight:700;transition:.15s}
+nav button svg{width:23px;height:23px}
+nav button.on{color:var(--accent)}
+nav button:active{transform:scale(.9)}
+.nav-brand{display:none}
+
+@media(min-width:900px){
+  body{overflow:hidden}
+  #app{
+    max-width:none;
+    grid-template-columns:240px 1fr;
+    grid-template-rows:auto 1fr;
+    grid-template-areas:
+      "side topbar"
+      "side main";
+    box-shadow:none;
+  }
+  .topbar{padding:22px 36px 14px;border-bottom:1px solid var(--border-soft)}
+  .topbar .brand{display:none}
+  main{padding:28px 36px 40px}
+  .screen{max-width:680px;margin:0 auto}
+  main::-webkit-scrollbar,.sheet::-webkit-scrollbar{width:8px}
+  main::-webkit-scrollbar-thumb,.sheet::-webkit-scrollbar-thumb{background:var(--border);border-radius:99px}
+  nav{
+    grid-area:side;
+    flex-direction:column;align-items:stretch;
+    padding:22px 16px;
+    border-top:none;border-right:1px solid var(--border-soft);
+    background:var(--bg-2);
+    gap:3px;
+    overflow-y:auto;
+  }
+  .nav-brand{
+    display:flex;align-items:center;gap:10px;
+    padding:6px 12px 22px;
+    font-weight:900;font-size:19px;letter-spacing:-.02em;
+  }
+  .nav-brand .mark{
+    width:30px;height:30px;border-radius:9px;display:grid;place-items:center;
+    background:linear-gradient(135deg,var(--accent),#e89a2a);color:#1a1205;font-weight:900;font-size:16px;
+    box-shadow:0 4px 14px -4px rgba(244,183,64,.6);font-family:var(--font-disp);
+  }
+  .nav-brand .next{color:var(--accent)}
+  nav button{
+    flex:0 0 auto;flex-direction:row;justify-content:flex-start;
+    gap:13px;padding:11px 14px;border-radius:11px;font-size:14px;
+  }
+  nav button svg{width:21px;height:21px}
+  nav button.on{background:rgba(244,183,64,.1)}
+  nav button:not(.on):hover{background:rgba(255,255,255,.03);color:var(--dim);cursor:pointer}
+  .overlay{align-items:center}
+  .sheet{border-radius:24px;max-width:520px;margin:0 16px;max-height:85dvh}
+}
+
+/* Modal */
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);backdrop-filter:blur(4px);z-index:50;display:none;align-items:flex-end;justify-content:center}
+.overlay.show{display:flex;animation:fade .2s}
+@media(min-width:520px){.overlay{align-items:center}}
+.sheet{position:relative;width:100%;max-width:480px;background:var(--bg-2);border:1px solid var(--border);border-radius:24px 24px 0 0;padding:8px 20px max(22px,env(safe-area-inset-bottom));max-height:90dvh;overflow-y:auto;animation:slideup .3s cubic-bezier(.2,.8,.2,1)}
+.sheet-x{position:absolute;top:12px;right:12px;width:34px;height:34px;border-radius:50%;background:var(--surface-2);color:var(--dim);font-size:15px;display:grid;place-items:center;border:1px solid var(--border-soft);font-weight:700;z-index:5;transition:.15s}
+.sheet-x:hover{color:var(--text);background:var(--surface)}
+.sheet-x:active{transform:scale(.92)}
+@media(min-width:520px){.sheet{border-radius:24px;margin:0 16px}}
+@keyframes slideup{from{transform:translateY(40px);opacity:.5}to{transform:none;opacity:1}}
+.sheet .grip{width:38px;height:4px;border-radius:99px;background:var(--border);margin:8px auto 16px}
+.sheet h3{font-family:var(--font-disp);font-size:20px;font-weight:800;margin-bottom:4px}
+.sheet .desc{font-size:13px;color:var(--dim);margin-bottom:18px}
+
+.toast{position:absolute;bottom:90px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--surface-2);border:1px solid var(--border);color:var(--text);padding:11px 18px;border-radius:99px;font-size:13px;font-weight:700;z-index:60;opacity:0;transition:.3s;box-shadow:var(--shadow);pointer-events:none;white-space:nowrap}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+.note{font-size:11px;color:var(--faint);text-align:center;margin-top:16px;line-height:1.6}
+.note a{color:var(--dim)}
+.linkrow{display:flex;gap:8px;font-size:12px;justify-content:center;margin-top:8px}
+.tiny-del{font-size:12px;color:var(--faint);text-align:center;width:100%;padding:8px;margin-top:4px}
+
+/* Cloud sync */
+.sync-badge{font-family:var(--mono);font-size:10px;padding:3px 8px;border-radius:99px;letter-spacing:.04em;margin-right:8px;white-space:nowrap;display:inline-block}
+.sync-badge.dim{background:var(--surface-2);color:var(--faint);border:1px solid var(--border-soft)}
+.sync-badge.ok{background:rgba(91,208,138,.1);color:var(--green);border:1px solid rgba(91,208,138,.25)}
+.sync-badge.warn{background:rgba(255,138,107,.1);color:var(--coral);border:1px solid rgba(255,138,107,.25)}
+.sync-badge.syncing{background:rgba(70,201,214,.1);color:var(--teal);border:1px solid rgba(70,201,214,.25)}
+.sync-head{display:flex;align-items:center;gap:11px;margin-bottom:13px}
+.sync-head .ic{width:34px;height:34px;border-radius:10px;background:var(--surface-2);display:grid;place-items:center;color:var(--teal)}
+.sync-head .ic svg{width:18px;height:18px}
+.sync-head .ttl{font-weight:700;font-size:15px}
+.sync-head .st{font-size:11px;color:var(--dim);font-family:var(--mono);margin-top:1px}
+.gbtn{display:flex;align-items:center;justify-content:center;gap:10px;width:100%;padding:13px;border-radius:12px;background:#fff;color:#1f1f1f;font-weight:700;font-size:14px;border:1px solid #dadce0;transition:.15s}
+.gbtn:hover{background:#f8f9fa}
+.gbtn:active{transform:scale(.98)}
+.gbtn svg{width:18px;height:18px;flex:0 0 auto}
+.sync-info{font-size:13px;color:var(--dim);line-height:1.6}
+.sync-info b{color:var(--text);font-weight:700;word-break:break-all}
+.sync-actions{display:flex;gap:8px;margin-top:12px}
+.sync-actions button{flex:1;padding:10px;border-radius:11px;font-size:13px;font-weight:700;background:var(--surface-2);border:1px solid var(--border-soft);color:var(--dim);transition:.12s}
+.sync-actions button:active{transform:scale(.97)}
+.sync-actions button.primary{background:var(--accent);color:#1a1205;border-color:var(--accent)}
+.setup-warn{background:rgba(255,138,107,.06);border:1px solid rgba(255,138,107,.2);border-radius:12px;padding:13px 14px;font-size:13px;color:var(--coral);line-height:1.65;margin-top:10px}
+.setup-warn code{background:rgba(0,0,0,.3);padding:1px 6px;border-radius:4px;font-family:var(--mono);font-size:12px;color:var(--accent)}
+
+/* Plan grouping (today vs others) */
+.group-label{display:flex;align-items:center;gap:10px;margin:4px 2px 13px;font-family:var(--mono);font-size:11px;letter-spacing:.13em;color:var(--dim);text-transform:uppercase;font-weight:700}
+.group-label::after{content:"";flex:1;height:1px;background:var(--border-soft)}
+.group-label .wd{color:var(--accent)}
+.group-label.others{margin-top:28px}
+.group-label.others .ico{color:var(--faint)}
+.group-empty{text-align:center;color:var(--faint);font-size:13px;padding:10px 0 4px}
+
+/* Progress number next to subject */
+.prog{font-family:var(--mono);font-weight:700;color:var(--text)}
+.prog .sl{color:var(--faint);font-weight:400;margin:0 1px}
+.sub .pu{color:var(--faint)}
+
+/* Pace chip (ahead / behind / on-track) */
+.pacerow{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:11px;flex-wrap:wrap}
+.pace{font-family:var(--mono);font-size:12px;font-weight:700;padding:4px 11px;border-radius:99px;white-space:nowrap;display:inline-flex;align-items:center;gap:5px}
+.pace.ahead{background:rgba(91,208,138,.12);color:var(--green);border:1px solid rgba(91,208,138,.28)}
+.pace.behind{background:rgba(255,138,107,.12);color:var(--coral);border:1px solid rgba(255,138,107,.28)}
+.pace.ontrack{background:var(--surface-2);color:var(--dim);border:1px solid var(--border-soft)}
+.pace-hint{font-family:var(--mono);font-size:11px;color:var(--faint);white-space:nowrap}
+
+/* Home task pace tag */
+.task .pace-tag{font-family:var(--mono);font-size:11px;font-weight:700;padding:1px 7px;border-radius:99px}
+.task .pace-tag.ahead{background:rgba(91,208,138,.12);color:var(--green)}
+.task .pace-tag.behind{background:rgba(255,138,107,.12);color:var(--coral)}
+
+/* Timeline (Study Plus風) */
+.tl-day{display:flex;align-items:baseline;gap:8px;margin:20px 2px 12px}
+.tl-day .d{font-family:var(--font-disp);font-size:17px;font-weight:800}
+.tl-day .wd{font-family:var(--mono);font-size:12px;color:var(--faint)}
+.tl-day .sum{font-family:var(--mono);font-size:11px;color:var(--dim);margin-left:auto}
+.tl-day .sum small{color:var(--faint)}
+.tl-item{display:flex;gap:13px}
+.tl-rail{flex:0 0 14px;display:flex;flex-direction:column;align-items:center}
+.tl-dot{width:13px;height:13px;border-radius:50%;border:2px solid var(--bg);box-shadow:0 0 0 2px var(--border-soft);margin-top:5px;flex:0 0 auto}
+.tl-line{flex:1;width:2px;background:var(--border-soft);margin:4px 0 0}
+.tl-body{flex:1;min-width:0;padding-bottom:14px}
+.tl-time{font-family:var(--mono);font-size:12px;color:var(--dim);margin:3px 0 5px}
+.tl-card{background:var(--surface);border:1px solid var(--border-soft);border-radius:14px;padding:12px 14px}
+.tl-head{display:flex;align-items:flex-start;gap:8px}
+.tl-ttl{flex:1;min-width:0;font-weight:700;font-size:15px;line-height:1.4}
+.tl-ttl .tl-sub{display:inline-block;font-weight:500;font-size:11px;color:var(--dim);background:var(--surface-2);border:1px solid var(--border-soft);padding:1px 8px;border-radius:99px;margin-left:7px;vertical-align:middle}
+.tl-del{flex:0 0 auto;width:26px;height:26px;border-radius:8px;color:var(--faint);font-size:12px;font-weight:700;display:grid;place-items:center;transition:.12s}
+.tl-del:hover{color:var(--coral);background:rgba(255,138,107,.1)}
+.tl-del:active{transform:scale(.9)}
+.tl-meta{display:flex;flex-wrap:wrap;gap:7px;margin-top:9px}
+.tl-dur,.tl-prog{font-family:var(--mono);font-size:12px;font-weight:700;padding:3px 10px;border-radius:99px}
+.tl-dur{background:var(--surface-2);color:var(--dim);border:1px solid var(--border-soft)}
+.tl-dur small{color:var(--faint);font-weight:400}
+.tl-prog{background:rgba(244,183,64,.12);color:var(--accent);border:1px solid var(--accent-dim)}
+.tl-rate{font-family:var(--mono);font-size:11px;color:var(--faint);margin-top:8px}
+.tl-rate b{color:var(--dim)}
+.tl-ref{font-size:13px;color:var(--text);line-height:1.6;margin-top:9px;padding-top:9px;border-top:1px solid var(--border-soft);white-space:pre-wrap;word-break:break-word}
+</style>
+</head>
+<body>
+<div id="app">
+  <div class="topbar">
+    <div class="brand"><span class="mark">S</span>Study</div>
+    <div style="display:flex;align-items:center"><span class="sync-badge dim" id="syncbadge">ローカル保存</span><div class="topdate" id="topdate"></div></div>
+  </div>
+
+  <main>
+    <!-- HOME -->
+    <section class="screen active" id="s-home"></section>
+    <!-- PLANS -->
+    <section class="screen" id="s-plans"></section>
+    <!-- FOCUS -->
+    <section class="screen" id="s-focus"></section>
+    <!-- TIMELINE -->
+    <section class="screen" id="s-timeline"></section>
+    <!-- ANALYTICS -->
+    <section class="screen" id="s-stats"></section>
+  </main>
+
+  <nav id="nav"></nav>
+  <div class="overlay" id="overlay"><div class="sheet" id="sheet"></div></div>
+  <div class="toast" id="toast"></div>
+</div>
+
+<script>
+"use strict";
+
+/* ===================================================================
+   Firebase 設定 — コンソールの「ウェブアプリを追加」で表示される
+   firebaseConfig をそっくりここに貼り替える。
+   (apiKey 等は公開して問題ない値。アクセス制御は Firestore ルールで行う)
+   =================================================================== */
+const firebaseConfig = {
+  apiKey: "AIzaSyCWtpPCTgLS9T9ddI7AB1jtH1Os5hMKeZE",
+  authDomain: "pretend-study-next.firebaseapp.com",
+  projectId: "pretend-study-next",
+  storageBucket: "pretend-study-next.firebasestorage.app",
+  messagingSenderId: "652063506599",
+  appId: "1:652063506599:web:0ec6c8f8d0ee1bcff2db82"
+};
+
+/* ============ Storage (localStorage + in-memory fallback) ============ */
+const Store=(()=>{
+  let ok=true;
+  try{const k="__sn_test";localStorage.setItem(k,"1");localStorage.removeItem(k);}catch(e){ok=false;}
+  const mem={};
+  return {
+    get(k,def){
+      try{ if(ok){const v=localStorage.getItem(k);return v==null?def:JSON.parse(v);} }catch(e){}
+      return k in mem?mem[k]:def;
+    },
+    set(k,v){
+      try{ if(ok){localStorage.setItem(k,JSON.stringify(v));return;} }catch(e){}
+      mem[k]=v;
+    },
+    persistent:ok
+  };
+})();
+
+/* ============ State ============ */
+const DB={
+  plans:Store.get("sn_plans",[]),
+  records:Store.get("sn_records",[]),
+  settings:Store.get("sn_settings",{focus:25,brk:5}),
+};
+function save(opts){
+  Store.set("sn_plans",DB.plans);Store.set("sn_records",DB.records);
+  Store.set("sn_settings",DB.settings);
+  if(!(opts&&opts.skipSync)){
+    Store.set("sn_dirty",true); // この端末で変更が入った印(同期判定に使う)
+    if(window.Sync&&Sync.isSignedIn())Sync.schedule();
+  }
+}
+const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,7);
+
+/* ============ Date helpers (local) ============ */
+const pad=n=>String(n).padStart(2,"0");
+function dstr(d){return d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate());}
+function parseD(s){const[a,b,c]=s.split("-").map(Number);return new Date(a,b-1,c);}
+const today=()=>{const d=new Date();d.setHours(0,0,0,0);return d;};
+const todayStr=()=>dstr(today());
+function addDays(d,n){const x=new Date(d);x.setDate(x.getDate()+n);return x;}
+function daysBetween(a,b){return Math.round((b-a)/86400000);}
+function countStudyDays(from,to,days){ // inclusive, days=array of weekday 0-6 allowed
+  if(to<from)return 0;let c=0,d=new Date(from);
+  while(d<=to){if(days.includes(d.getDay()))c++;d=addDays(d,1);}
+  return c;
+}
+const WD=["日","月","火","水","木","金","土"];
+
+/* ============ Migration: 既存計画に開始日/開始時完了量を補完 ============ */
+// startDate が無い計画は、最も古い記録日(無ければ今日)を開始日とみなし、
+// startDone は「現在の完了量 − その計画の全記録単位数」で推定する。
+function migratePlans(){
+  let changed=false;
+  DB.plans.forEach(p=>{
+    if(p.startDate&&typeof p.startDone==="number")return;
+    const recs=DB.records.filter(r=>r.planId===p.id);
+    if(!p.startDate){
+      let earliest=null;
+      recs.forEach(r=>{if(!earliest||r.date<earliest)earliest=r.date;});
+      p.startDate=earliest||todayStr();
+      changed=true;
+    }
+    if(typeof p.startDone!=="number"){
+      const sumU=recs.reduce((s,r)=>s+(r.units||0),0);
+      p.startDone=Math.max(0,Math.min(p.completed,p.completed-sumU));
+      changed=true;
+    }
+  });
+  return changed;
+}
+
+/* ============ Reverse-calc ============ */
+function planCalc(p){
+  const t=today(),dl=parseD(p.deadline);
+  const remaining=Math.max(0,p.total-p.completed);
+  const studyDays=countStudyDays(t,dl,p.days);
+  const overdue=dl<t;
+  let daily;
+  if(remaining<=0)daily=0;
+  else if(overdue||studyDays<=0)daily=remaining;
+  else daily=Math.ceil(remaining/studyDays);
+  const isStudyDay=p.days.includes(t.getDay());
+  const doneToday=DB.records.filter(r=>r.planId===p.id&&r.date===todayStr())
+                            .reduce((s,r)=>s+(r.units||0),0);
+  const todayQuota=(isStudyDay||overdue)?daily:0;
+  const todayLeft=Math.max(0,todayQuota-doneToday);
+
+  // ---- pace tracking: 開始日からの「理想ライン」に対して今どれだけ先行/遅れか ----
+  // startDate(開始日) と startDone(開始時点の完了量) を基準に、締切までを
+  // 学習曜日で均等割りした理想ペースを引く。判定は「前日終了時点」で行い、
+  // 当日分のノルマ(todayQuota)とは混ぜない(毎朝マイナスに振れるノイズを防ぐ)。
+  const sDate=p.startDate?parseD(p.startDate):t;
+  const sDone=(typeof p.startDone==="number")?p.startDone:p.completed;
+  const totalWork=Math.max(0,p.total-sDone);
+  const planStudyDays=countStudyDays(sDate,dl,p.days);      // 開始〜締切(両端含む)の学習日数
+  const perDay=planStudyDays>0?totalWork/planStudyDays:totalWork;
+  const yest=addDays(t,-1);
+  const bound=yest<dl?yest:dl;                              // 締切は超えない
+  const elapsedDays=countStudyDays(sDate,bound,p.days);     // 前日までの学習日数
+  const idealNow=Math.min(p.total,sDone+perDay*elapsedDays);
+  const pace=Math.round(p.completed-idealNow);             // + 先行 / - 遅れ
+
+  return {remaining,studyDays,daily,overdue,isStudyDay,doneToday,todayQuota,todayLeft,
+          pace,idealNow,
+          daysLeft:daysBetween(t,dl),pct:p.total?Math.min(100,Math.round(p.completed/p.total*100)):0};
+}
+
+/* ============ Toast ============ */
+let toastT;
+function toast(msg){const el=document.getElementById("toast");el.textContent=msg;el.classList.add("show");clearTimeout(toastT);toastT=setTimeout(()=>el.classList.remove("show"),1800);}
+
+/* ============ Modal ============ */
+const overlay=document.getElementById("overlay"),sheet=document.getElementById("sheet");
+function openSheet(html){
+  sheet.innerHTML='<div class="grip"></div><button class="sheet-x" onclick="closeSheet()" aria-label="閉じる">✕</button>'+html;
+  overlay.classList.add("show");
+}
+function closeSheet(){overlay.classList.remove("show");}
+// Backdrop close: only if pointer goes DOWN and UP both on the overlay itself
+// (prevents accidental close when dragging from sheet/input to backdrop)
+let _downOnBg=false;
+overlay.addEventListener("pointerdown",e=>{_downOnBg=(e.target===overlay);});
+overlay.addEventListener("pointerup",e=>{
+  if(_downOnBg&&e.target===overlay)closeSheet();
+  _downOnBg=false;
+});
+document.addEventListener("keydown",e=>{
+  if(e.key==="Escape"&&overlay.classList.contains("show"))closeSheet();
+});
+
+/* ============ Icons ============ */
+const I={
+  home:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V20h14V9.5"/></svg>',
+  plan:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/></svg>',
+  focus:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="8"/><path d="M12 13V9M9 2h6"/></svg>',
+  stats:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>',
+  timeline:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="2"/><circle cx="6" cy="18" r="2"/><path d="M6 8v8"/><path d="M12 6h8M12 12h6M12 18h8"/></svg>',
+  play:'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 5v14l12-7z"/></svg>',
+  pause:'<svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg>',
+  reset:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg>',
+  skip:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 4v16l10-8z"/><line x1="19" y1="5" x2="19" y2="19"/></svg>',
+  check:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#0c0e13" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>',
+};
+
+/* ============ Navigation ============ */
+const TABS=[["home","ホーム"],["plans","計画"],["focus","集中"],["timeline","記録"],["stats","分析"]];
+const ICON={home:I.home,plans:I.plan,focus:I.focus,timeline:I.timeline,stats:I.stats};
+let current="home";
+function buildNav(){
+  document.getElementById("nav").innerHTML=
+    '<div class="nav-brand"><span class="mark">S</span>Study<span class="next">Next</span></div>'+
+    TABS.map(([k,l])=>
+      `<button data-tab="${k}" class="${k===current?'on':''}">${ICON[k]}<span>${l}</span></button>`).join("");
+  document.querySelectorAll("nav button").forEach(b=>b.onclick=()=>go(b.dataset.tab));
+}
+function go(tab){
+  current=tab;
+  document.querySelectorAll(".screen").forEach(s=>s.classList.remove("active"));
+  document.getElementById("s-"+tab).classList.add("active");
+  document.querySelectorAll("nav button").forEach(b=>b.classList.toggle("on",b.dataset.tab===tab));
+  render();
+}
+
+/* ============ Streak & totals ============ */
+function streak(){
+  const set=new Set(DB.records.map(r=>r.date));
+  let d=today();if(!set.has(dstr(d)))d=addDays(d,-1);
+  let n=0;while(set.has(dstr(d))){n++;d=addDays(d,-1);}return n;
+}
+function todayFocus(){return DB.records.filter(r=>r.date===todayStr()).reduce((s,r)=>s+(r.dur||0),0);}
+const fmtMin=m=>m>=60?`${Math.floor(m/60)}<small>時間</small>${m%60?(m%60)+'<small>分</small>':''}`:`${m}<small>分</small>`;
+
+/* ============ RENDER ============ */
+function render(){
+  document.getElementById("topdate").innerHTML=(()=>{const d=new Date();return `<b>${d.getMonth()+1}/${d.getDate()}</b> (${WD[d.getDay()]})`;})();
+  if(current==="home")renderHome();
+  else if(current==="plans")renderPlans();
+  else if(current==="focus")renderFocus();
+  else if(current==="timeline")renderTimeline();
+  else if(current==="stats")renderStats();
+}
+
+/* ---- HOME ---- */
+function renderHome(){
+  const el=document.getElementById("s-home");
+  const hour=new Date().getHours();
+  const greet=hour<5?"おつかれさま":hour<11?"おはよう":hour<18?"こんにちは":"今夜もがんばろう";
+  const fm=todayFocus(),stk=streak();
+  const tasks=DB.plans.map(p=>({p,c:planCalc(p)})).filter(x=>x.c.todayQuota>0&&x.c.remaining>0);
+  const allDone=tasks.length&&tasks.every(x=>x.c.todayLeft<=0);
+
+  let h=`<div class="hero">
+    <div class="greet">${greet}、からあげ。</div>
+    <div class="big">${tasks.length?`今日のタスクは<br><em>${tasks.length}件</em>。`:`今日の<br><em>計画</em>を立てよう。`}</div>
+    <div class="statrow">
+      <div class="stat"><div class="v acc">${fmtMin(fm)}</div><div class="l">今日の集中</div></div>
+      <div class="stat"><div class="v grn">${stk}<small>日</small></div><div class="l">連続記録</div></div>
+      <div class="stat"><div class="v tl">${DB.records.length}</div><div class="l">総セッション</div></div>
+    </div>
+  </div>`;
+
+  h+=`<div class="shead" style="margin-top:26px"><span class="num">01</span><h2>今日のノルマ</h2><span class="en">Today</span></div>`;
+  if(!DB.plans.length){
+    h+=`<div class="card"><div class="empty"><div class="ico">🎯</div><p>まだ計画がありません。<br>志望校から逆算して、毎日のノルマを自動生成します。</p>
+      <button class="btn" onclick="go('plans')">計画を作成する</button>
+      <button class="tiny-del" onclick="seedDemo()">サンプルデータを入れて試す</button></div></div>`;
+  }else if(!tasks.length){
+    h+=`<div class="card"><div class="empty"><div class="ico">🌙</div><p>今日のノルマはありません。<br>（学習日に設定されていないか、すべて完了済み）</p></div></div>`;
+  }else{
+    h+=`<div class="card">`;
+    tasks.forEach(({p,c})=>{
+      const done=c.todayLeft<=0;
+      let paceTag="";
+      if(c.pace>0)paceTag=`<span class="pace-tag ahead">＋${c.pace}</span>`;
+      else if(c.pace<0)paceTag=`<span class="pace-tag behind">${c.pace}</span>`;
+      h+=`<div class="task ${done?'complete':''}">
+        <div class="check ${done?'done':''}" onclick="toggleTask('${p.id}')">${I.check}</div>
+        <div class="body">
+          <div class="t">${esc(p.title)}</div>
+          <div class="sub"><span class="dot" style="background:${p.color}"></span>${esc(p.subject)}
+            <span style="color:var(--faint)">·</span> 残り${c.daysLeft}日 ${paceTag}</div>
+        </div>
+        <div class="q">${c.doneToday}/${c.todayQuota}<span style="color:var(--faint)"> ${esc(p.unit)}</span></div>
+        <div class="qbtns"><button onclick="quickLog('${p.id}',1)">＋</button></div>
+      </div>`;
+    });
+    h+=`</div>`;
+    if(allDone)h+=`<div class="note" style="color:var(--green)">✓ 今日のノルマ完了。おつかれさま。</div>`;
+    h+=`<button class="btn" style="margin-top:14px" onclick="go('focus')">${I.focus} ポモドーロを始める</button>`;
+  }
+  el.innerHTML=h;
+}
+window.toggleTask=id=>{const p=DB.plans.find(x=>x.id===id),c=planCalc(p);if(c.todayLeft>0)quickLog(id,c.todayLeft);else toast("もう完了しています");};
+window.quickLog=(id,n)=>{
+  const p=DB.plans.find(x=>x.id===id);
+  DB.records.push({id:uid(),planId:id,date:todayStr(),units:n,dur:0,conc:0,diff:0,ref:"",ts:new Date().toISOString()});
+  p.completed=Math.min(p.total,p.completed+n);save();toast(`+${n} ${p.unit} 記録`);renderHome();
+};
+
+/* ---- PLANS ---- */
+function planCardHTML(p,c,showPace){
+  const dueClass=c.daysLeft<7?'':'safe';
+  let paceRow="";
+  if(showPace){
+    let chip;
+    if(c.pace>0)chip=`<span class="pace ahead">＋${c.pace}${esc(p.unit)} 先行</span>`;
+    else if(c.pace<0)chip=`<span class="pace behind">${c.pace}${esc(p.unit)} 遅れ</span>`;
+    else chip=`<span class="pace ontrack">予定どおり</span>`;
+    paceRow=`<div class="pacerow">${chip}<span class="pace-hint">今日のノルマ ${c.doneToday}/${c.todayQuota}${esc(p.unit)}</span></div>`;
+  }
+  return `<div class="card plan">
+    <div class="top">
+      <div><div class="ttl">${esc(p.title)}</div>
+      <div class="sub"><span class="dot" style="background:${p.color};display:inline-block;margin-right:6px;vertical-align:middle"></span>${esc(p.subject)} · <span class="prog">${p.completed}<span class="sl">/</span>${p.total}</span> <span class="pu">${esc(p.unit)}</span></div></div>
+      <span class="badge">${c.pct}%</span>
+    </div>
+    <div class="pbar"><i class="${c.remaining<=0?'grn':''}" style="width:${c.pct}%"></i></div>
+    ${paceRow}
+    <div class="meta">
+      <span>1日 <b style="color:var(--accent)">${c.daily}${esc(p.unit)}</b> ペース</span>
+      <span class="due ${dueClass}">${c.overdue?'期限超過':c.daysLeft===0?'今日が締切':'あと'+c.daysLeft+'日'}</span>
+    </div>
+    <div class="actions">
+      <button onclick="quickLog('${p.id}',1)">＋1 記録</button>
+      <button onclick="planForm('${p.id}')">編集</button>
+      <button class="go" onclick="startFocusFor('${p.id}')">集中</button>
+    </div>
+  </div>`;
+}
+function renderPlans(){
+  const el=document.getElementById("s-plans");
+  let h=`<div class="shead"><span class="num">02</span><h2>逆算プラン</h2><span class="en">Planning</span></div>`;
+  h+=`<button class="btn" style="margin-bottom:16px" onclick="planForm()">＋ 新しい計画</button>`;
+  if(!DB.plans.length){
+    h+=`<div class="card"><div class="empty"><div class="ico">📚</div><p>教材と締切を入力するだけで、<br>残り日数から最適な1日の量を自動計算します。</p></div></div>`;
+  }else{
+    const items=DB.plans.map(p=>({p,c:planCalc(p)}));
+    // 今日の学習曜日 かつ まだ全体が終わっていない計画 → 上に。遅れている順。
+    const todayItems=items.filter(x=>x.c.isStudyDay&&x.c.remaining>0)
+                          .sort((a,b)=>a.c.pace-b.c.pace);
+    // それ以外(今日やらない曜日 / 完了済み) → 下に。未完を締切が近い順、完了は最後。
+    const otherItems=items.filter(x=>!(x.c.isStudyDay&&x.c.remaining>0))
+                          .sort((a,b)=>{
+                            const ac=a.c.remaining<=0,bc=b.c.remaining<=0;
+                            if(ac!==bc)return ac?1:-1;
+                            return a.c.daysLeft-b.c.daysLeft;
+                          });
+    const wd=WD[today().getDay()];
+    h+=`<div class="group-label">今日やる<span class="wd">${wd}曜</span></div>`;
+    if(todayItems.length){
+      todayItems.forEach(({p,c})=>{h+=planCardHTML(p,c,true);});
+    }else{
+      h+=`<div class="group-empty">今日(${wd})にやる計画はありません</div>`;
+    }
+    if(otherItems.length){
+      h+=`<div class="group-label others">その他の計画</div>`;
+      otherItems.forEach(({p,c})=>{h+=planCardHTML(p,c,false);});
+    }
+  }
+  el.innerHTML=h;
+}
+function planForm(id){
+  const p=id?DB.plans.find(x=>x.id===id):null;
+  const def=p||{title:"",subject:"",total:100,unit:"問",completed:0,startDate:todayStr(),deadline:dstr(addDays(today(),30)),days:[1,2,3,4,5,6],color:"#f4b740"};
+  const colors=["#f4b740","#5bd08a","#46c9d6","#9d8cff","#ff8a6b"];
+  openSheet(`<h3>${p?'計画を編集':'新しい計画'}</h3>
+    <div class="desc">締切までの残り日数から、1日のノルマを自動で逆算します。</div>
+    <div class="field"><label>計画名</label><input id="f-title" placeholder="例: チャート式 数学IIB" value="${esc(def.title)}"></div>
+    <div class="row2">
+      <div class="field"><label>教科</label><input id="f-subject" placeholder="数学" value="${esc(def.subject)}"></div>
+      <div class="field"><label>単位</label><input id="f-unit" placeholder="問" value="${esc(def.unit)}"></div>
+    </div>
+    <div class="row2">
+      <div class="field"><label>総量</label><input id="f-total" type="number" inputmode="numeric" value="${def.total}"></div>
+      <div class="field"><label>完了済み</label><input id="f-completed" type="number" inputmode="numeric" value="${def.completed}"></div>
+    </div>
+    <div class="row2">
+      <div class="field"><label>開始日</label><input id="f-startdate" type="date" value="${def.startDate||todayStr()}"></div>
+      <div class="field"><label>締切日</label><input id="f-deadline" type="date" value="${def.deadline}"></div>
+    </div>
+    <div class="field"><label>学習する曜日</label>
+      <div class="daypick" id="f-days">${WD.map((w,i)=>`<button data-d="${i}" class="${def.days.includes(i)?'on':''}">${w}</button>`).join("")}</div>
+    </div>
+    <div class="field"><label>カラー</label>
+      <div class="daypick" id="f-color">${colors.map(c=>`<button data-c="${c}" class="${c===def.color?'on':''}" style="background:${c}22;border-color:${c===def.color?c:'var(--border)'}"><span style="display:inline-block;width:18px;height:18px;border-radius:50%;background:${c}"></span></button>`).join("")}</div>
+    </div>
+    <button class="btn" onclick="savePlan('${id||''}')">${p?'更新する':'計画を作成'}</button>
+    ${p?`<button class="tiny-del" onclick="delPlan('${id}')">この計画を削除</button>`:''}`);
+  document.querySelectorAll("#f-days button").forEach(b=>b.onclick=()=>b.classList.toggle("on"));
+  document.querySelectorAll("#f-color button").forEach(b=>b.onclick=()=>{
+    document.querySelectorAll("#f-color button").forEach(x=>{x.classList.remove("on");x.style.borderColor="var(--border)";});
+    b.classList.add("on");b.style.borderColor=b.dataset.c;});
+}
+window.planForm=planForm;
+window.savePlan=id=>{
+  const g=i=>document.getElementById(i).value.trim();
+  const title=g("f-title")||"無題の計画";
+  const days=[...document.querySelectorAll("#f-days button.on")].map(b=>+b.dataset.d);
+  const color=document.querySelector("#f-color button.on")?.dataset.c||"#f4b740";
+  const completed=Math.max(0,+g("f-completed")||0);
+  const data={title,subject:g("f-subject")||"その他",unit:g("f-unit")||"問",
+    total:Math.max(1,+g("f-total")||1),completed,
+    startDate:g("f-startdate")||todayStr(),
+    deadline:g("f-deadline")||dstr(addDays(today(),30)),days:days.length?days:[1,2,3,4,5],color};
+  if(id){
+    // 編集時は startDone(開始時点の完了量=理想ラインの基準)は維持する
+    Object.assign(DB.plans.find(x=>x.id===id),data);
+  }else{
+    // 新規作成時は「完了済み」を開始時点の基準とする → 当日の差分は0からスタート
+    DB.plans.push({id:uid(),...data,startDone:completed});
+  }
+  save();closeSheet();toast(id?"更新しました":"計画を作成しました");renderPlans();
+};
+window.delPlan=id=>{DB.plans=DB.plans.filter(x=>x.id!==id);save();closeSheet();toast("削除しました");renderPlans();};
+
+/* ---- FOCUS (Pomodoro) ---- */
+let timer={running:false,mode:"focus",sec:DB.settings.focus*60,total:DB.settings.focus*60,sessions:0,planId:null,intv:null,elapsed:0};
+window.startFocusFor=id=>{timer.planId=id;go("focus");};
+function renderFocus(){
+  const el=document.getElementById("s-focus");
+  const R=110,C=2*Math.PI*R,off=C*(1-timer.sec/timer.total);
+  const m=Math.floor(timer.sec/60),s=timer.sec%60;
+  const isBrk=timer.mode==="break";
+  const plan=DB.plans.find(p=>p.id===timer.planId);
+  const planOpts=`<option value="">教科を選択しない</option>`+DB.plans.map(p=>`<option value="${p.id}" ${p.id===timer.planId?'selected':''}>${esc(p.title)}</option>`).join("");
+  el.innerHTML=`
+  <div class="shead"><span class="num">03</span><h2>ポモドーロ集中</h2><span class="en">Focus</span></div>
+  <div class="card pomo">
+    <div class="ring-wrap">
+      <svg width="248" height="248" viewBox="0 0 248 248">
+        <circle class="ring-bg" cx="124" cy="124" r="${R}"/>
+        <circle class="ring-fg ${isBrk?'brk':''}" cx="124" cy="124" r="${R}" stroke-dasharray="${C}" stroke-dashoffset="${off}"/>
+      </svg>
+      <div class="ring-mid">
+        <div class="mode ${isBrk?'brk':''}">${isBrk?'BREAK':'FOCUS'}</div>
+        <div class="time">${pad(m)}:${pad(s)}</div>
+        <div class="sess">完了 ${timer.sessions} セッション</div>
+      </div>
+    </div>
+    <div class="pomo-target">${plan?`<b>${esc(plan.title)}</b> に集中中`:'教科を選んで集中しよう'}</div>
+    <div class="pomo-ctrl">
+      <button class="cbtn" onclick="resetTimer()" title="リセット">${I.reset}</button>
+      <button class="cbtn main ${isBrk?'brk':''}" onclick="toggleTimer()">${timer.running?I.pause:I.play}</button>
+      <button class="cbtn" onclick="skipTimer()" title="スキップ">${I.skip}</button>
+    </div>
+  </div>
+  <div class="card">
+    <div class="field" style="margin-bottom:0"><label>集中する計画</label>
+      <select id="pomo-plan" onchange="timer.planId=this.value||null;renderFocus()">${planOpts}</select></div>
+  </div>
+  <div class="card">
+    <div class="row2">
+      <div class="field" style="margin-bottom:0"><label>集中(分)</label><input id="set-focus" type="number" inputmode="numeric" value="${DB.settings.focus}" onchange="setDur()"></div>
+      <div class="field" style="margin-bottom:0"><label>休憩(分)</label><input id="set-brk" type="number" inputmode="numeric" value="${DB.settings.brk}" onchange="setDur()"></div>
+    </div>
+  </div>`;
+}
+window.setDur=()=>{
+  const f=Math.max(1,+document.getElementById("set-focus").value||25);
+  const b=Math.max(1,+document.getElementById("set-brk").value||5);
+  DB.settings.focus=f;DB.settings.brk=b;save();
+  if(!timer.running){timer.total=(timer.mode==="focus"?f:b)*60;timer.sec=timer.total;renderFocus();}
+};
+window.toggleTimer=()=>{
+  if(timer.running){clearInterval(timer.intv);timer.running=false;}
+  else{
+    // 集中モード開始時は教科必須（休憩なら不要）
+    if(timer.mode==="focus"&&!timer.planId){
+      toast("教科が選択されていません");
+      const sel=document.getElementById("pomo-plan");
+      if(sel){sel.style.borderColor="var(--coral)";setTimeout(()=>sel.style.borderColor="",1800);sel.focus();}
+      return;
+    }
+    timer.running=true;
+    timer.intv=setInterval(()=>{
+      timer.sec--;if(timer.mode==="focus")timer.elapsed++;
+      if(timer.sec<=0){
+        clearInterval(timer.intv);timer.running=false;
+        if(timer.mode==="focus"){sessionEnd();}
+        else{ // 休憩終了 → 記録フォームは出さず集中モードへ戻す
+          try{navigator.vibrate&&navigator.vibrate(120);}catch(e){}
+          toBreakOrFocus("focus");toast("休憩おわり。集中に戻ろう");
+        }
+        return;
+      }
+      updateTimerUI();
+    },1000);
+  }
+  renderFocus();
+};
+function updateTimerUI(){
+  const R=110,C=2*Math.PI*R,off=C*(1-timer.sec/timer.total);
+  const m=Math.floor(timer.sec/60),s=timer.sec%60;
+  const fg=document.querySelector(".ring-fg");if(fg)fg.style.strokeDashoffset=off;
+  const t=document.querySelector(".ring-mid .time");if(t)t.textContent=pad(m)+":"+pad(s);
+}
+window.resetTimer=()=>{clearInterval(timer.intv);timer.running=false;timer.total=(timer.mode==="focus"?DB.settings.focus:DB.settings.brk)*60;timer.sec=timer.total;timer.elapsed=0;renderFocus();};
+window.skipTimer=()=>{clearInterval(timer.intv);timer.running=false;if(timer.mode==="focus")sessionEnd();else{toBreakOrFocus("focus");}};
+function toBreakOrFocus(mode){timer.mode=mode;timer.total=(mode==="focus"?DB.settings.focus:DB.settings.brk)*60;timer.sec=timer.total;timer.elapsed=0;renderFocus();}
+function sessionEnd(){
+  try{navigator.vibrate&&navigator.vibrate([120,60,120]);}catch(e){}
+  const min=Math.round(timer.elapsed/60)||DB.settings.focus;
+  recordForm(min);
+}
+function recordForm(min){
+  const plan=DB.plans.find(p=>p.id===timer.planId);
+  openSheet(`<h3>セッション記録</h3>
+    <div class="desc">${min}分の集中、おつかれさま。質を記録しておこう。</div>
+    <div class="field"><label>集中度</label><div class="rate" id="r-conc">${[1,2,3,4,5].map(n=>`<button data-v="${n}">${n}</button>`).join("")}</div></div>
+    <div class="field"><label>難易度</label><div class="rate diff" id="r-diff">${[1,2,3,4,5].map(n=>`<button data-v="${n}">${n}</button>`).join("")}</div></div>
+    ${plan?`<div class="field"><label>進んだ量（${esc(plan.unit)}）</label><input id="r-units" type="number" inputmode="numeric" value="0"></div>`:''}
+    <div class="field"><label>ふりかえり</label><textarea id="r-ref" placeholder="例: 微分の応用が難しかった"></textarea></div>
+    <button class="btn grn" style="background:var(--green);box-shadow:none;color:#06210f" onclick="saveRecord(${min})">記録して休憩へ</button>`);
+  let conc=4,diff=3;
+  document.querySelectorAll("#r-conc button").forEach(b=>b.onclick=()=>{conc=+b.dataset.v;mark("#r-conc",b);});
+  document.querySelectorAll("#r-diff button").forEach(b=>b.onclick=()=>{diff=+b.dataset.v;mark("#r-diff",b);});
+  function mark(sel,btn){document.querySelectorAll(sel+" button").forEach(x=>x.classList.remove("on"));btn.classList.add("on");}
+  document.querySelector('#r-conc button[data-v="4"]').classList.add("on");
+  document.querySelector('#r-diff button[data-v="3"]').classList.add("on");
+  window.__rec={get conc(){return conc;},get diff(){return diff;}};
+}
+window.saveRecord=min=>{
+  const conc=window.__rec.conc,diff=window.__rec.diff;
+  const ref=document.getElementById("r-ref").value.trim();
+  const units=+(document.getElementById("r-units")?.value||0);
+  DB.records.push({id:uid(),planId:timer.planId,date:todayStr(),units,dur:min,conc,diff,ref,ts:new Date().toISOString()});
+  if(timer.planId&&units>0){const p=DB.plans.find(x=>x.id===timer.planId);if(p)p.completed=Math.min(p.total,p.completed+units);}
+  timer.sessions++;save();closeSheet();toast("記録しました ✓");
+  toBreakOrFocus("break");
+};
+
+/* ---- TIMELINE ---- */
+// 記録のタイムスタンプ(ms)。ts(ISO)優先、無ければdateから。
+function tsMs(r){const t=Date.parse(r.ts);if(!isNaN(t))return t;const d=parseD(r.date);return d?d.getTime():0;}
+function hhmm(ms){const d=new Date(ms);return pad(d.getHours())+":"+pad(d.getMinutes());}
+function dayLabel(key){const d=parseD(key);return `${d.getMonth()+1}月${d.getDate()}日`;}
+
+let tlDays=14; // タイムラインの表示日数(初期=直近2週間)
+window.tlMore=()=>{tlDays+=14;renderTimeline();};
+
+function renderTimeline(){
+  const el=document.getElementById("s-timeline");
+  let h=`<div class="shead"><span class="num">04</span><h2>タイムライン</h2><span class="en">Timeline</span></div>`;
+  h+=`<button class="btn" style="margin-bottom:18px" onclick="logForm()">＋ 記録を追加</button>`;
+
+  const recs=[...DB.records].sort((a,b)=>tsMs(b)-tsMs(a)); // 新しい順
+  if(!recs.length){
+    h+=`<div class="card"><div class="empty"><div class="ico">🕓</div><p>まだ記録がありません。<br>ポモドーロで集中するか、「記録を追加」から手動で残せます。</p></div></div>`;
+    el.innerHTML=h;return;
+  }
+
+  // 直近 tlDays 日ぶんだけ表示(初期=2週間)。それ以前はボタンで段階的に。
+  const cutoff=dstr(addDays(today(),-(tlDays-1)));
+  const visible=recs.filter(r=>r.date>=cutoff);
+  const olderCount=recs.length-visible.length;
+
+  if(!visible.length){
+    h+=`<div class="card"><div class="empty" style="padding:28px 20px"><p>直近${tlDays}日に記録はありません。</p></div></div>`;
+  }else{
+    // 日付ごとにグループ化
+    const groups=[];
+    visible.forEach(r=>{
+      let g=groups.find(x=>x.key===r.date);
+      if(!g){g={key:r.date,items:[],min:0};groups.push(g);}
+      g.items.push(r);g.min+=(r.dur||0);
+    });
+    groups.forEach(g=>{
+      const wd=WD[parseD(g.key).getDay()];
+      const isToday=g.key===todayStr();
+      h+=`<div class="tl-day"><span class="d">${isToday?'今日':dayLabel(g.key)}</span><span class="wd">(${wd})</span><span class="sum">${g.min>0?fmtMin(g.min):'—'}</span></div>`;
+      g.items.forEach((r,i)=>{
+        const plan=DB.plans.find(p=>p.id===r.planId);
+        const color=plan?plan.color:"#616a7e";
+        const title=plan?plan.title:"フリー学習";
+        const subject=plan?plan.subject:"";
+        const unit=plan?plan.unit:"";
+        const end=tsMs(r),dur=r.dur||0;
+        const timeStr=dur>0?`${hhmm(end-dur*60000)}〜${hhmm(end)}`:hhmm(end);
+        const last=i===g.items.length-1;
+        let metaBits=[];
+        if(dur>0)metaBits.push(`<span class="tl-dur">${fmtMin(dur)}</span>`);
+        if(r.units>0)metaBits.push(`<span class="tl-prog">＋${r.units}${esc(unit)}</span>`);
+        let rate="";
+        if(r.conc>0||r.diff>0){
+          rate=`<div class="tl-rate">${r.conc>0?`集中 <b>${r.conc}</b>`:''}${(r.conc>0&&r.diff>0)?' · ':''}${r.diff>0?`難度 <b>${r.diff}</b>`:''}</div>`;
+        }
+        h+=`<div class="tl-item">
+          <div class="tl-rail"><span class="tl-dot" style="background:${color}"></span>${last?'':'<span class="tl-line"></span>'}</div>
+          <div class="tl-body">
+            <div class="tl-time">${timeStr}</div>
+            <div class="tl-card">
+              <div class="tl-head">
+                <div class="tl-ttl">${esc(title)}${subject?`<span class="tl-sub">${esc(subject)}</span>`:''}</div>
+                <button class="tl-del" onclick="confirmDelRecord('${r.id}')" aria-label="削除">✕</button>
+              </div>
+              ${metaBits.length?`<div class="tl-meta">${metaBits.join("")}</div>`:''}
+              ${rate}
+              ${r.ref?`<div class="tl-ref">${esc(r.ref)}</div>`:''}
+            </div>
+          </div>
+        </div>`;
+      });
+    });
+  }
+
+  if(olderCount>0){
+    h+=`<button class="btn ghost sm" style="margin-top:8px" onclick="tlMore()">もっと前を表示（あと${olderCount}件）</button>`;
+  }
+  el.innerHTML=h;
+}
+
+let __log={conc:4,diff:3};
+window.logForm=()=>{
+  const planOpts=`<option value="">教材を選択しない</option>`+DB.plans.map(p=>`<option value="${p.id}">${esc(p.title)}</option>`).join("");
+  const now=new Date();
+  openSheet(`<h3>記録を追加</h3>
+    <div class="desc">勉強した内容をタイムラインに残します。教材を選ぶと進捗にも反映されます。</div>
+    <div class="field"><label>教材</label><select id="l-plan">${planOpts}</select></div>
+    <div class="row2">
+      <div class="field"><label>日付</label><input id="l-date" type="date" value="${todayStr()}"></div>
+      <div class="field"><label>開始時刻</label><input id="l-time" type="time" value="${pad(now.getHours())}:${pad(now.getMinutes())}"></div>
+    </div>
+    <div class="row2">
+      <div class="field"><label>勉強時間(分)</label><input id="l-dur" type="number" inputmode="numeric" value="25"></div>
+      <div class="field"><label>進んだ量</label><input id="l-units" type="number" inputmode="numeric" value="0"></div>
+    </div>
+    <div class="field"><label>集中度</label><div class="rate" id="l-conc">${[1,2,3,4,5].map(n=>`<button data-v="${n}">${n}</button>`).join("")}</div></div>
+    <div class="field"><label>難易度</label><div class="rate diff" id="l-diff">${[1,2,3,4,5].map(n=>`<button data-v="${n}">${n}</button>`).join("")}</div></div>
+    <div class="field"><label>振り返り</label><textarea id="l-ref" placeholder="例: 二次関数の場合分けを復習。詰まった所をAnki化"></textarea></div>
+    <button class="btn" onclick="saveLog()">記録する</button>`);
+  __log={conc:4,diff:3};
+  document.querySelectorAll("#l-conc button").forEach(b=>b.onclick=()=>{__log.conc=+b.dataset.v;markRate("#l-conc",b);});
+  document.querySelectorAll("#l-diff button").forEach(b=>b.onclick=()=>{__log.diff=+b.dataset.v;markRate("#l-diff",b);});
+  document.querySelector('#l-conc button[data-v="4"]').classList.add("on");
+  document.querySelector('#l-diff button[data-v="3"]').classList.add("on");
+};
+function markRate(sel,btn){document.querySelectorAll(sel+" button").forEach(x=>x.classList.remove("on"));btn.classList.add("on");}
+window.saveLog=()=>{
+  const g=i=>document.getElementById(i);
+  const planId=g("l-plan").value||null;
+  const date=g("l-date").value||todayStr();
+  const time=g("l-time").value||"00:00";
+  const dur=Math.max(0,+g("l-dur").value||0);
+  const units=Math.max(0,+g("l-units").value||0);
+  const ref=g("l-ref").value.trim();
+  const [hh,mm]=time.split(":").map(Number);
+  const start=parseD(date);start.setHours(hh||0,mm||0,0,0);
+  const end=new Date(start.getTime()+dur*60000); // ts=終了時刻に統一(タイムラインで開始=ts-durで復元)
+  DB.records.push({id:uid(),planId,date,units,dur,conc:__log.conc,diff:__log.diff,ref,ts:end.toISOString()});
+  if(planId&&units>0){const p=DB.plans.find(x=>x.id===planId);if(p)p.completed=Math.min(p.total,p.completed+units);}
+  save();closeSheet();toast("記録しました ✓");renderTimeline();
+};
+window.confirmDelRecord=id=>{
+  openSheet(`<h3>記録を削除</h3>
+    <div class="desc">この記録を削除します。教材を紐づけていた場合、その進捗(完了量)からも差し引かれます。</div>
+    <button class="btn" style="background:var(--coral);color:#2a1006;box-shadow:none" onclick="delRecord('${id}')">削除する</button>
+    <button class="tiny-del" onclick="closeSheet()">キャンセル</button>`);
+};
+window.delRecord=id=>{
+  const r=DB.records.find(x=>x.id===id);
+  if(r&&r.planId&&r.units>0){const p=DB.plans.find(x=>x.id===r.planId);if(p)p.completed=Math.max(0,p.completed-r.units);}
+  DB.records=DB.records.filter(x=>x.id!==id);
+  save();closeSheet();toast("削除しました");renderTimeline();
+};
+
+/* ---- ANALYTICS ---- */
+function renderStats(){
+  const el=document.getElementById("s-stats");
+  const recs=DB.records;
+  const totalMin=recs.reduce((s,r)=>s+(r.dur||0),0);
+  const sessions=recs.filter(r=>r.dur>0).length;
+  const concRecs=recs.filter(r=>r.conc>0);
+  const avgConc=concRecs.length?(concRecs.reduce((s,r)=>s+r.conc,0)/concRecs.length).toFixed(1):"–";
+  const totalUnits=recs.reduce((s,r)=>s+(r.units||0),0);
+
+  // last 14 days (各日の教科別内訳つき)
+  const days=[];for(let i=13;i>=0;i--){const d=addDays(today(),-i);days.push({d,key:dstr(d),min:0,sub:{}});}
+  recs.forEach(r=>{
+    const day=days.find(x=>x.key===r.date);if(!day)return;
+    const m=r.dur||0;day.min+=m;
+    if(m>0){const p=DB.plans.find(x=>x.id===r.planId);const nm=p?p.subject:"未分類";const col=p?p.color:"#616a7e";if(!day.sub[nm])day.sub[nm]={min:0,col};day.sub[nm].min+=m;}
+  });
+  const max=Math.max(60,...days.map(d=>d.min));
+  // ツールチップ用データ(株価チャート風のクロスヘア表示に使う)
+  window.__chartDays=days.map(d=>({
+    min:d.min,
+    label:`${d.d.getMonth()+1}/${d.d.getDate()} (${WD[d.d.getDay()]})`,
+    parts:Object.entries(d.sub).map(([nm,v])=>({nm,min:v.min,col:v.col})).sort((a,b)=>b.min-a.min)
+  }));
+
+  // subject distribution
+  const dist={};
+  recs.forEach(r=>{const p=DB.plans.find(x=>x.id===r.planId);const key=p?p.subject:"未分類";const col=p?p.color:"#616a7e";if(!dist[key])dist[key]={min:0,col};dist[key].min+=(r.dur||0);});
+  const distArr=Object.entries(dist).filter(([,v])=>v.min>0).sort((a,b)=>b[1].min-a[1].min);
+  const distMax=Math.max(1,...distArr.map(([,v])=>v.min));
+
+  let h=`<div class="shead"><span class="num">05</span><h2>学習分析</h2><span class="en">Stats</span></div>
+  <div class="bigstat">
+    <div class="s"><div class="v acc" style="color:var(--accent)">${fmtMin(totalMin)}</div><div class="l">総集中時間</div></div>
+    <div class="s"><div class="v" style="color:var(--green)">${streak()}<small>日</small></div><div class="l">連続記録</div></div>
+    <div class="s"><div class="v" style="color:var(--teal)">${sessions}</div><div class="l">セッション数</div></div>
+    <div class="s"><div class="v" style="color:var(--violet)">${avgConc}</div><div class="l">平均集中度</div></div>
+  </div>`;
+
+  h+=`<div class="card" style="margin-top:14px">
+    <div style="font-size:13px;color:var(--dim);margin-bottom:2px;font-weight:700">直近14日の集中時間 <span style="color:var(--faint);font-weight:400">(分)</span></div>
+    <div class="chart-wrap">
+      <div class="chart-cross"></div>
+      <div class="chart-tip"></div>
+      <div class="chart">${days.map((d,i)=>{
+        const ht=Math.round(d.min/max*100);const isT=d.key===todayStr();
+        return `<div class="bar" data-i="${i}"><div class="fill ${isT?'today':''}" style="height:${d.min?Math.max(ht,4):0}%"></div><div class="lab">${d.d.getDate()}</div></div>`;
+      }).join("")}</div>
+    </div>
+    <div class="chart-hint">バーにカーソルを合わせる/タップで内訳を表示</div>
+  </div>`;
+
+  if(distArr.length){
+    h+=`<div class="card"><div style="font-size:13px;color:var(--dim);margin-bottom:8px;font-weight:700">教科別の集中時間</div>`;
+    distArr.forEach(([k,v])=>{
+      h+=`<div class="distrow"><div class="dl"><span class="nm"><span class="dot" style="background:${v.col};display:inline-block;margin-right:6px;vertical-align:middle"></span>${esc(k)}</span><span class="vv">${v.min}分</span></div><div class="db"><i style="width:${Math.round(v.min/distMax*100)}%;background:${v.col}"></i></div></div>`;
+    });
+    h+=`</div>`;
+  }
+
+  h+=renderSyncCard();
+
+  h+=`<div class="card"><div style="font-size:13px;color:var(--dim);margin-bottom:4px;font-weight:700">累計</div>
+    <div class="plan meta" style="font-family:var(--mono);font-size:13px"><span>こなした量</span><span style="color:var(--accent)">${totalUnits} 単位</span></div>
+    <div class="plan meta" style="font-family:var(--mono);font-size:13px"><span>記録した日数</span><span style="color:var(--text)">${new Set(recs.map(r=>r.date)).size} 日</span></div>
+    <div class="plan meta" style="font-family:var(--mono);font-size:13px"><span>進行中の計画</span><span style="color:var(--text)">${DB.plans.length} 件</span></div>
+  </div>`;
+
+  if(!recs.length){
+    h+=`<div class="note">まだ記録がありません。<br>ポモドーロで集中すると、ここにデータが溜まっていきます。</div>`;
+  }
+
+  h+=`<div class="note">
+    データはこの端末の localStorage に保存されます。${Store.persistent?'':'<br><b style="color:var(--coral)">⚠ プレビュー表示中は保存されません。ダウンロードして開いてください。</b>'}
+    <div class="linkrow"><a href="#" onclick="exportData();return false">エクスポート</a> · <a href="#" onclick="resetAll();return false">全消去</a></div>
+  </div>`;
+  el.innerHTML=h;
+  bindChart();
+}
+
+/* チャートのクロスヘア + 内訳ツールチップ(マウス/タッチ両対応) */
+function bindChart(){
+  const wrap=document.querySelector(".chart-wrap");if(!wrap)return;
+  const tip=wrap.querySelector(".chart-tip");
+  const cross=wrap.querySelector(".chart-cross");
+  const bars=[...wrap.querySelectorAll(".bar")];
+  const days=window.__chartDays||[];
+  function show(i){
+    const d=days[i];if(!d){hide();return;}
+    const rows=d.parts.length
+      ? d.parts.map(p=>`<div class="tt-row"><span class="dot" style="background:${p.col}"></span><span class="nm">${esc(p.nm)}</span><span class="vv">${p.min}<small>分</small></span></div>`).join("")
+      : `<div class="tt-empty">学習なし</div>`;
+    tip.innerHTML=`<div class="tt-d">${d.label}</div><div class="tt-total">${d.min>0?fmtMin(d.min):"0<small>分</small>"}</div>${rows}`;
+    const wr=wrap.getBoundingClientRect();
+    const br=bars[i].getBoundingClientRect();
+    const cx=br.left+br.width/2-wr.left;
+    cross.style.left=cx+"px";cross.classList.add("show");
+    tip.classList.add("show");
+    const tw=tip.offsetWidth;
+    let left=cx-tw/2;
+    left=Math.max(2,Math.min(left,wr.width-tw-2));
+    tip.style.left=left+"px";
+    bars.forEach((b,bi)=>b.classList.toggle("active",bi===i));
+  }
+  function hide(){tip.classList.remove("show");cross.classList.remove("show");bars.forEach(b=>b.classList.remove("active"));}
+  function pick(e){
+    const x=(e.touches&&e.touches[0])?e.touches[0].clientX:e.clientX;
+    let best=-1,bd=1e9;
+    bars.forEach((b,bi)=>{const r=b.getBoundingClientRect();const c=r.left+r.width/2;const dd=Math.abs(c-x);if(dd<bd){bd=dd;best=bi;}});
+    if(best>=0)show(best);
+  }
+  wrap.addEventListener("pointermove",pick);
+  wrap.addEventListener("pointerdown",pick);
+  wrap.addEventListener("pointerleave",hide);
+  wrap.addEventListener("pointercancel",hide);
+  // 外側タップで閉じる(タッチ端末)
+  document.addEventListener("pointerdown",e=>{if(!wrap.contains(e.target))hide();},{passive:true});
+}
+
+window.exportData=()=>{
+  const blob=new Blob([JSON.stringify({plans:DB.plans,records:DB.records},null,2)],{type:"application/json"});
+  const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="studynext-backup.json";a.click();toast("バックアップを保存");
+};
+
+const G_ICON='<svg viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>';
+const CLOUD_ICON='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.5 19a4.5 4.5 0 1 0-.96-8.9 6 6 0 0 0-11.5 1.7A4 4 0 0 0 6 19h11.5z"/></svg>';
+
+function renderSyncCard(){
+  // file:// 実行中
+  if(location.protocol==="file:"){
+    return `<div class="card"><div class="sync-head"><div class="ic">${CLOUD_ICON}</div><div><div class="ttl">クラウド同期</div><div class="st">UNAVAILABLE</div></div></div>
+    <div class="setup-warn">ローカルファイル(<code>file://</code>)実行中はGoogle認証が動作しません。クラウド同期を使うには Firebase Hosting (<code>.web.app</code>) などにデプロイしてHTTPSで開いてください。</div></div>`;
+  }
+  // firebaseConfig 未設定
+  if(!Sync.isConfigured()){
+    return `<div class="card"><div class="sync-head"><div class="ic">${CLOUD_ICON}</div><div><div class="ttl">クラウド同期</div><div class="st">SETUP REQUIRED</div></div></div>
+    <div class="setup-warn">ソースコード先頭の <code>firebaseConfig</code> がまだ <code>PASTE_HERE</code> のままです。Firebaseコンソールで取得した設定値を貼り替えてください。</div></div>`;
+  }
+  // 初期化待ち
+  if(!Sync.ready){
+    return `<div class="card"><div class="sync-head"><div class="ic">${CLOUD_ICON}</div><div><div class="ttl">クラウド同期</div><div class="st">CONNECTING…</div></div></div>
+    <div class="sync-info">Firebase に接続しています…</div></div>`;
+  }
+  // 未ログイン
+  if(!Sync.isSignedIn()){
+    return `<div class="card"><div class="sync-head"><div class="ic">${CLOUD_ICON}</div><div><div class="ttl">クラウド同期</div><div class="st">NOT SIGNED IN</div></div></div>
+    <div class="sync-info" style="margin-bottom:13px">Googleアカウントでログインすると、データが <b>クラウド(Firestore)</b> に保存され、複数端末で自動同期されます。</div>
+    <button class="gbtn" onclick="Sync.signIn()">${G_ICON}Googleでログイン</button></div>`;
+  }
+  // ログイン済み
+  const last=Sync.lastSync?`${Math.floor((Date.now()-Sync.lastSync)/60000)}分前`:"—";
+  return `<div class="card"><div class="sync-head"><div class="ic" style="color:var(--green)">${CLOUD_ICON}</div><div><div class="ttl">クラウド同期</div><div class="st" style="color:var(--green)">SIGNED IN</div></div></div>
+  <div class="sync-info">アカウント: <b>${esc(Sync._email||"(不明)")}</b><br>最終同期: <b>${last}</b></div>
+  <div class="sync-actions">
+    <button class="primary" onclick="Sync.manualSync()">今すぐ同期</button>
+    <button onclick="Sync.signOut()">ログアウト</button>
+  </div></div>`;
+}
+window.resetAll=()=>{openSheet(`<h3>全データを消去</h3><div class="desc">計画と学習記録がすべて削除されます。この操作は取り消せません。</div>
+  <button class="btn" style="background:var(--coral);color:#2a1006;box-shadow:none" onclick="doReset()">削除する</button>
+  <button class="tiny-del" onclick="closeSheet()">キャンセル</button>`);};
+window.doReset=()=>{DB.plans=[];DB.records=[];save();closeSheet();toast("消去しました");render();};
+
+/* ---- Demo seed ---- */
+window.seedDemo=()=>{
+  DB.plans=[
+    {id:uid(),title:"チャート式 数学IIB",subject:"数学",unit:"問",total:300,completed:84,startDate:dstr(addDays(today(),-20)),startDone:40,deadline:dstr(addDays(today(),45)),days:[1,2,3,4,5,6],color:"#f4b740"},
+    {id:uid(),title:"LEAP 英単語(改訂)",subject:"英語",unit:"語",total:2300,completed:910,startDate:dstr(addDays(today(),-25)),startDone:700,deadline:dstr(addDays(today(),90)),days:[0,1,2,3,4,5,6],color:"#46c9d6"},
+    {id:uid(),title:"鎌田の理論化学",subject:"化学",unit:"章",total:18,completed:5,startDate:dstr(addDays(today(),-14)),startDone:1,deadline:dstr(addDays(today(),30)),days:[2,4,6],color:"#5bd08a"},
+  ];
+  const p=DB.plans;
+  DB.records=[];
+  for(let i=13;i>=0;i--){if(Math.random()<.78){const d=dstr(addDays(today(),-i));const n=1+Math.floor(Math.random()*3);for(let j=0;j<n;j++){const pl=p[Math.floor(Math.random()*p.length)];DB.records.push({id:uid(),planId:pl.id,date:d,units:2+Math.floor(Math.random()*6),dur:25,conc:3+Math.floor(Math.random()*3),diff:2+Math.floor(Math.random()*3),ref:"",ts:d});}}}
+  save();toast("サンプルを読み込みました");render();
+};
+
+/* ---- util ---- */
+function esc(s){return String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));}
+
+/* ============ Cloud Sync (Firebase Auth + Firestore) ============ */
+const Sync={
+  user:null,lastSync:null,ready:false,
+  _saveT:null,_busy:false,_pendingCloud:null,_email:null,_db:null,_didInitial:false,
+  isConfigured(){
+    return location.protocol!=="file:"
+      && typeof firebaseConfig!=="undefined"
+      && firebaseConfig && firebaseConfig.apiKey
+      && firebaseConfig.apiKey!=="PASTE_HERE";
+  },
+  isSignedIn(){return !!this.user;},
+  init(){
+    if(!this.isConfigured())return;
+    const wait=()=>{
+      if(typeof firebase==="undefined"||!firebase.auth||!firebase.firestore){
+        setTimeout(wait,300);return;
+      }
+      try{
+        if(!firebase.apps||!firebase.apps.length)firebase.initializeApp(firebaseConfig);
+        this._db=firebase.firestore();
+        this.ready=true;
+        firebase.auth().onAuthStateChanged(async (user)=>{
+          if(user){
+            this.user=user;this._email=user.email;
+            if(!this._didInitial){
+              this._didInitial=true;
+              try{await this._initialSync();}catch(e){toast("同期エラー: "+(e.message||e));}
+            }
+          }else{
+            this.user=null;this._email=null;this._didInitial=false;this.lastSync=null;
+          }
+          updateTopSync();
+          if(current==="stats")renderStats();
+        });
+      }catch(e){console.warn("Firebase init failed",e);toast("Firebase初期化失敗: "+(e.message||e));}
+    };
+    wait();
+  },
+  signIn(){
+    if(!this.ready){toast("初期化中…少し待って再度押してください");return;}
+    const provider=new firebase.auth.GoogleAuthProvider();
+    firebase.auth().signInWithPopup(provider).catch(e=>{
+      if(e.code==="auth/popup-blocked"){
+        firebase.auth().signInWithRedirect(provider);
+      }else if(e.code!=="auth/popup-closed-by-user"&&e.code!=="auth/cancelled-popup-request"){
+        toast("認証失敗: "+(e.message||e.code||"unknown"));
+      }
+    });
+  },
+  signOut(){
+    firebase.auth().signOut()
+      .then(()=>{toast("ログアウトしました");})
+      .catch(e=>toast("ログアウト失敗: "+(e.message||e)));
+  },
+  _docRef(){return this._db.collection("users").doc(this.user.uid);},
+  async _download(){
+    const snap=await this._docRef().get();
+    return snap.exists?snap.data():null;
+  },
+  async _initialSync(){
+    const cloud=await this._download();
+    const hasCloud=cloud&&((cloud.records&&cloud.records.length)||(cloud.plans&&cloud.plans.length));
+    const hasLocal=DB.plans.length>0||DB.records.length>0;
+    if(!hasCloud){
+      if(hasLocal){await this.upload();toast("ローカルデータをクラウドに保存");}
+      else{this.lastSync=new Date();updateTopSync();}
+      return;
+    }
+    if(!hasLocal){this._applyCloud(cloud);toast("クラウドからデータを読込");return;}
+    // 両方にデータあり ―― 競合かどうかを判定する
+    // (1) 中身が同一なら同期済み扱い(プロンプト不要)
+    if(this._sameData(cloud,DB)){
+      Store.set("sn_synctag",cloud.updatedAt||null);Store.set("sn_dirty",false);
+      this.lastSync=new Date();updateTopSync();return;
+    }
+    const tag=Store.get("sn_synctag",null);
+    const dirty=Store.get("sn_dirty",true); // 不明なら安全側(変更あり扱い)
+    const inSync=tag&&cloud.updatedAt&&tag===cloud.updatedAt; // 前回同期後クラウドは変わってない
+    if(inSync){
+      // クラウドは前回のまま → こちらの変更を反映するだけ
+      if(dirty)await this.upload();
+      else{this.lastSync=new Date();updateTopSync();}
+      return;
+    }
+    // クラウドが別端末で更新されている
+    if(!dirty){this._applyCloud(cloud);toast("クラウドの更新を反映");return;}
+    // 双方が変更されている → 本当の競合。ユーザーに選んでもらう
+    this._promptMerge(cloud);
+  },
+  _sameData(a,b){
+    try{return JSON.stringify({p:a.plans||[],r:a.records||[]})===JSON.stringify({p:b.plans||[],r:b.records||[]});}
+    catch(e){return false;}
+  },
+  _applyCloud(cloud){
+    DB.plans=cloud.plans||[];
+    DB.records=cloud.records||[];
+    if(cloud.settings)DB.settings=cloud.settings;
+    migratePlans();
+    save({skipSync:true});
+    Store.set("sn_synctag",cloud.updatedAt||null);Store.set("sn_dirty",false);
+    this.lastSync=new Date();
+    render();
+  },
+  _promptMerge(cloud){
+    this._pendingCloud=cloud;
+    const cP=(cloud.plans||[]).length,cR=(cloud.records||[]).length;
+    const lP=DB.plans.length,lR=DB.records.length;
+    openSheet(`<h3>データを選択</h3>
+      <div class="desc">この端末とクラウドの両方にデータがあります。どちらを使いますか？(片方を選ぶともう片方は上書きされます)</div>
+      <div class="card"><b>📱 この端末</b><div style="color:var(--dim);font-size:13px;margin-top:3px;font-family:var(--mono)">計画 ${lP}件 · 記録 ${lR}件</div></div>
+      <button class="btn" style="margin-bottom:14px" onclick="Sync.useLocal()">この端末のデータを使う</button>
+      <div class="card"><b>☁️ クラウド</b><div style="color:var(--dim);font-size:13px;margin-top:3px;font-family:var(--mono)">計画 ${cP}件 · 記録 ${cR}件</div></div>
+      <button class="btn ghost" onclick="Sync.useCloud()">クラウドのデータを使う</button>`);
+  },
+  useLocal(){closeSheet();this.upload().then(()=>toast("クラウドを上書きしました"));},
+  useCloud(){
+    closeSheet();
+    if(!this._pendingCloud)return;
+    this._applyCloud(this._pendingCloud);
+    this._pendingCloud=null;
+    toast("クラウドのデータを反映");
+    updateTopSync();
+  },
+  async upload(){
+    if(!this.user||this._busy)return;
+    this._busy=true;
+    updateTopSync(true);
+    const stamp=new Date().toISOString();
+    try{
+      await this._docRef().set({
+        plans:DB.plans,records:DB.records,settings:DB.settings,
+        updatedAt:stamp
+      });
+      this.lastSync=new Date();
+      Store.set("sn_synctag",stamp);Store.set("sn_dirty",false);
+    }catch(e){
+      toast("同期失敗: "+(e.message||e));
+    }finally{
+      this._busy=false;
+      updateTopSync();
+    }
+  },
+  schedule(){
+    if(!this.user)return;
+    clearTimeout(this._saveT);
+    this._saveT=setTimeout(()=>this.upload(),3000);
+  },
+  manualSync(){
+    if(!this.user){toast("ログインしてください");return;}
+    this.upload();
+  }
+};
+function updateTopSync(syncing){
+  const el=document.getElementById("syncbadge");if(!el)return;
+  if(syncing){el.textContent="同期中…";el.className="sync-badge syncing";return;}
+  if(!Sync.isConfigured()){
+    if(location.protocol==="file:"){el.textContent="ローカル実行";}
+    else{el.textContent="未設定";}
+    el.className="sync-badge dim";return;
+  }
+  if(!Sync.isSignedIn()){el.textContent="未ログイン";el.className="sync-badge dim";return;}
+  if(Sync.lastSync){
+    const m=Math.floor((Date.now()-Sync.lastSync)/60000);
+    el.textContent=m<1?"同期済み":m+"分前";
+  }else{el.textContent="ログイン中";}
+  el.className="sync-badge ok";
+}
+
+/* ---- init ---- */
+if(migratePlans())save({skipSync:true});
+buildNav();render();Sync.init();updateTopSync();
+setInterval(updateTopSync,30000); // 同期バッジの「○分前」更新
+</script>
+</body>
+</html>
